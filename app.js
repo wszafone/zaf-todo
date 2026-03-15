@@ -9,7 +9,10 @@
   const STORAGE_MEMOS = 'schedule_memos';
   const STORAGE_MEMO_TABS = 'schedule_memo_tabs';
   const STORAGE_DELETED_MEMO_TABS = 'schedule_deleted_memo_tabs';
-  const DEFAULT_MEMO_TABS = ['조만간 할일', '언젠간 할일', '기타/참고', '개인', '시타마치', '슈가맨', '부동산 투자', '기타'];
+  const memoryStore = {};
+  function getFromStore(key) { return memoryStore[key] ?? null; }
+  function setToStore(key, value) { memoryStore[key] = value; }
+  const DEFAULT_MEMO_TABS = ['개인', '시타마치', '슈가맨워크', '부동산투자', '인공지능(AI)', '기타'];
   const MEMO_PASTEL_COLORS = ['#B3E5FC', '#FFF59D', '#C8E6C9', '#F8BBD9', '#B2EBF2', '#E1BEE7', '#FFCC80', '#B2DFDB', '#FFAB91', '#CFD8DC'];
   const MEMO_PASTEL_COLOR_NAMES = ['하늘색', '노란색', '연두색', '분홍색', '청록색', '연보라', '주황색', '민트색', '산호색', '연회색'];
   const SECTION_COLOR_INDEX = { morning: 0, lunch: 1, afternoon: 2, evening: 3 };
@@ -139,7 +142,7 @@
 
   function loadQuote() {
     try {
-      const raw = localStorage.getItem(STORAGE_QUOTE);
+      const raw = getFromStore(STORAGE_QUOTE);
       if (raw) {
         const arr = JSON.parse(raw);
         document.querySelectorAll('.quote-line').forEach((el, i) => {
@@ -151,7 +154,7 @@
 
   function saveQuote() {
     const lines = Array.from(document.querySelectorAll('.quote-line')).map(el => el.innerHTML.trim());
-    localStorage.setItem(STORAGE_QUOTE, JSON.stringify(lines));
+    setToStore(STORAGE_QUOTE, JSON.stringify(lines));
   }
 
   function loadCalendarMemo() {
@@ -161,7 +164,7 @@
     try {
       const quill = window.calendarMemoQuill;
       if (quill && quill.root) {
-        localStorage.setItem(STORAGE_CALENDAR_MEMO, quill.root.innerHTML || '');
+        setToStore(STORAGE_CALENDAR_MEMO, quill.root.innerHTML || '');
       }
     } catch (_) {}
   }
@@ -269,7 +272,7 @@
       }
       document.addEventListener('mousedown', onToolbarUnderline, true);
       document.addEventListener('mousedown', onToolbarStrike, true);
-      var raw = localStorage.getItem(STORAGE_CALENDAR_MEMO);
+      var raw = getFromStore(STORAGE_CALENDAR_MEMO);
       if (raw && raw.trim()) {
         window.calendarMemoQuill.root.innerHTML = raw;
       }
@@ -282,7 +285,7 @@
 
   function loadTodos() {
     try {
-      const raw = localStorage.getItem(STORAGE_TODOS);
+      const raw = getFromStore(STORAGE_TODOS);
       state.todos = raw ? JSON.parse(raw) : {};
       Object.keys(state.todos).forEach(k => {
         (state.todos[k] || []).forEach(t => {
@@ -294,7 +297,7 @@
       state.todos = {};
     }
     try {
-      const raw = localStorage.getItem(STORAGE_TODOS_COMPLETED);
+      const raw = getFromStore(STORAGE_TODOS_COMPLETED);
       state.completedRepeatingInstances = raw ? JSON.parse(raw) : {};
     } catch (_) {
       state.completedRepeatingInstances = {};
@@ -302,16 +305,16 @@
   }
 
   function saveTodos() {
-    localStorage.setItem(STORAGE_TODOS, JSON.stringify(state.todos));
+    setToStore(STORAGE_TODOS, JSON.stringify(state.todos));
   }
 
   function saveCompletedRepeating() {
-    localStorage.setItem(STORAGE_TODOS_COMPLETED, JSON.stringify(state.completedRepeatingInstances));
+    setToStore(STORAGE_TODOS_COMPLETED, JSON.stringify(state.completedRepeatingInstances));
   }
 
   function loadRepeating() {
     try {
-      const raw = localStorage.getItem(STORAGE_REPEATING);
+      const raw = getFromStore(STORAGE_REPEATING);
       state.repeatingTodos = raw ? JSON.parse(raw) : [];
       state.repeatingTodos.forEach(t => {
         if (t.important === true) t.important = 'red';
@@ -323,7 +326,7 @@
   }
 
   function saveRepeating() {
-    localStorage.setItem(STORAGE_REPEATING, JSON.stringify(state.repeatingTodos));
+    setToStore(STORAGE_REPEATING, JSON.stringify(state.repeatingTodos));
   }
 
   function repeatingAppliesToDate(t, key) {
@@ -1291,7 +1294,7 @@ delBtn.title = '삭제';
 
   function loadMemoTabs() {
     try {
-      const raw = localStorage.getItem(STORAGE_MEMO_TABS);
+      const raw = getFromStore(STORAGE_MEMO_TABS);
       const parsed = raw ? JSON.parse(raw) : [];
       state.memoTabs = parsed.map((t, i) => {
         const tab = typeof t === 'string' ? { id: 'tab_' + i, name: t } : { id: t.id || 'tab_' + i, name: t.name || '' };
@@ -1307,7 +1310,7 @@ delBtn.title = '삭제';
       state.memoTabs.push({ id: 'tab_' + idx, name: '개인', colorIndex: idx % 10 });
     }
     try {
-      const rawDeleted = localStorage.getItem(STORAGE_DELETED_MEMO_TABS);
+      const rawDeleted = getFromStore(STORAGE_DELETED_MEMO_TABS);
       const parsedDeleted = rawDeleted ? JSON.parse(rawDeleted) : [];
       state.deletedMemoTabs = Array.isArray(parsedDeleted) ? parsedDeleted.map((t, i) => {
         const tab = typeof t === 'string' ? { id: 'tab_del_' + i, name: t } : { id: t.id || 'tab_del_' + i, name: t.name || '' };
@@ -1341,11 +1344,11 @@ delBtn.title = '삭제';
   }
 
   function saveMemoTabs() {
-    localStorage.setItem(STORAGE_MEMO_TABS, JSON.stringify(state.memoTabs));
+    setToStore(STORAGE_MEMO_TABS, JSON.stringify(state.memoTabs));
   }
 
   function saveDeletedMemoTabs() {
-    localStorage.setItem(STORAGE_DELETED_MEMO_TABS, JSON.stringify(state.deletedMemoTabs));
+    setToStore(STORAGE_DELETED_MEMO_TABS, JSON.stringify(state.deletedMemoTabs));
   }
 
   function normalizeMemoItems(data) {
@@ -1374,7 +1377,7 @@ delBtn.title = '삭제';
 
   function loadMemos() {
     try {
-      const raw = localStorage.getItem(STORAGE_MEMOS);
+      const raw = getFromStore(STORAGE_MEMOS);
       const parsed = raw ? JSON.parse(raw) : {};
       state.memos = {};
       for (const k of Object.keys(parsed)) {
@@ -1386,7 +1389,7 @@ delBtn.title = '삭제';
   }
 
   function saveMemos() {
-    localStorage.setItem(STORAGE_MEMOS, JSON.stringify(state.memos));
+    setToStore(STORAGE_MEMOS, JSON.stringify(state.memos));
   }
 
   function ensureMemoItems(tabId) {
