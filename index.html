@@ -28,6 +28,7 @@
         <button type="button" class="nav-btn" id="cal-next" aria-label="다음 달">〉</button>
         <button type="button" class="nav-btn nav-btn-year" id="cal-year-next" aria-label="다음 년도">〉〉</button>
         <button type="button" class="nav-btn nav-btn-today" id="cal-today" aria-label="오늘로 이동">오늘</button>
+        <button type="button" class="nav-btn cal-type-toggle-btn" id="cal-type-toggle" aria-label="양력/음력 전환" title="클릭 시 양력↔음력 전환">양력</button>
         <button type="button" class="nav-btn nav-btn-special-dates btn-calendar-category-edit" id="cal-special-dates-btn" aria-label="설정" title="특정날짜 분류관리"></button>
       </div>
       <div class="calendar-grid" id="calendar-grid"></div>
@@ -48,6 +49,7 @@
             <button type="button" class="nav-btn" id="cal-full-next" aria-label="다음 달">〉</button>
             <button type="button" class="nav-btn nav-btn-year" id="cal-full-year-next" aria-label="다음 년도">〉〉</button>
             <button type="button" class="nav-btn nav-btn-today" id="cal-full-today" aria-label="오늘">오늘</button>
+            <button type="button" class="nav-btn cal-type-toggle-btn" id="cal-full-type-toggle" aria-label="양력/음력 전환" title="클릭 시 양력↔음력 전환">양력</button>
           </div>
           <span class="todo-view-caption" id="todo-view-caption"></span>
         </div>
@@ -58,19 +60,19 @@
         <div class="todo-list-scroll">
           <div class="todo-list" id="todo-list">
             <div class="todo-section section-morning" data-section="morning">
-              <div class="section-header"><span class="section-header-title">오전</span><button type="button" class="section-add-btn" data-section="morning" aria-label="추가">⊕</button></div>
+              <div class="section-header"><span class="section-header-title">오전</span><button type="button" class="section-add-btn btn-icon" data-section="morning" aria-label="추가">⊕</button></div>
               <ul class="todo-items" data-section="morning"></ul>
             </div>
             <div class="todo-section section-lunch" data-section="lunch">
-              <div class="section-header"><span class="section-header-title">점심</span><button type="button" class="section-add-btn" data-section="lunch" aria-label="추가">⊕</button></div>
+              <div class="section-header"><span class="section-header-title">점심</span><button type="button" class="section-add-btn btn-icon" data-section="lunch" aria-label="추가">⊕</button></div>
               <ul class="todo-items" data-section="lunch"></ul>
             </div>
             <div class="todo-section section-afternoon" data-section="afternoon">
-              <div class="section-header"><span class="section-header-title">오후</span><button type="button" class="section-add-btn" data-section="afternoon" aria-label="추가">⊕</button></div>
+              <div class="section-header"><span class="section-header-title">오후</span><button type="button" class="section-add-btn btn-icon" data-section="afternoon" aria-label="추가">⊕</button></div>
               <ul class="todo-items" data-section="afternoon"></ul>
             </div>
             <div class="todo-section section-evening" data-section="evening">
-              <div class="section-header"><span class="section-header-title">저녁</span><button type="button" class="section-add-btn" data-section="evening" aria-label="추가">⊕</button></div>
+              <div class="section-header"><span class="section-header-title">저녁</span><button type="button" class="section-add-btn btn-icon" data-section="evening" aria-label="추가">⊕</button></div>
               <ul class="todo-items" data-section="evening"></ul>
             </div>
           </div>
@@ -94,7 +96,7 @@
           <select id="memo-category-select" class="memo-category-select" title="메모 분류 선택">
             <option value="">전체</option>
           </select>
-          <button type="button" class="btn-icon" id="memo-add-next-to-reorder" title="메모 추가">⊕</button>
+          <button type="button" class="btn-icon" id="memo-add-next-to-reorder" title="할일 추가">⊕</button>
           <button type="button" class="btn-calendar-category-edit memo-category-edit-in-bar" id="memo-category-edit-btn" title="분류 구성" aria-label="분류 구성">분류 구성</button>
         </div>
       </div>
@@ -120,25 +122,32 @@
   <div class="modal" id="special-dates-modal">
     <div class="modal-content modal-sm">
       <h3>반복일정</h3>
-      <p class="special-dates-desc">명칭, 분류, 시작일과 반복(매일/매주/매월/기간설정)을 입력하면 달력에 표시됩니다.</p>
       <div class="special-dates-add">
-        <input type="text" id="special-date-label" placeholder="명칭" maxlength="20" aria-label="명칭">
-        <select id="special-date-category" aria-label="분류" title="분류">
-          <!-- 메모 분류 목록으로 채움 -->
-        </select>
-        <input type="date" id="special-date-input" aria-label="시작일">
-        <select id="special-date-repeat" aria-label="반복">
-          <option value="none">반복 없음</option>
-          <option value="daily">매일</option>
-          <option value="weekly">매주</option>
-          <option value="monthly">매월</option>
-          <option value="range">기간 설정</option>
-        </select>
-        <div class="form-group range-group special-dates-range-group" id="special-dates-range-group" style="display:none">
+        <div class="special-dates-label-row">
+          <input type="text" id="special-date-label" placeholder="명칭" maxlength="20" aria-label="명칭">
+          <span id="special-date-selected-display" class="special-date-selected-display" aria-live="polite"></span>
+        </div>
+        <div class="special-dates-control-row">
+          <select id="special-date-category" aria-label="분류" title="분류">
+            <!-- 메모 분류 목록으로 채움 -->
+          </select>
+          <div class="special-date-input-center-wrap">
+            <input type="date" id="special-date-input" aria-label="시작일">
+            <select id="special-date-repeat" aria-label="반복">
+              <option value="none">반복 없음</option>
+              <option value="daily">매일</option>
+              <option value="weekly">매주</option>
+              <option value="monthly">매월</option>
+              <option value="yearly">매년</option>
+              <option value="range">기간 설정</option>
+            </select>
+          </div>
+          <button type="button" class="btn-primary btn-small" id="special-date-add-btn">추가</button>
+        </div>
+        <div class="form-group range-group special-dates-range-group" id="special-dates-range-group" hidden>
           <label>반복 기간</label>
           <input type="date" id="special-date-range-start"> ~ <input type="date" id="special-date-range-end">
         </div>
-        <button type="button" class="btn-primary btn-small" id="special-date-add-btn">추가</button>
       </div>
       <ul class="special-dates-list" id="special-dates-list"></ul>
       <div class="modal-actions">

@@ -234,6 +234,14 @@ header {
   opacity: 1;
 }
 
+.cal-type-toggle-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  width: auto;
+  min-width: 0;
+}
+
 .nav-btn {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -258,6 +266,9 @@ header {
 
 .nav-btn-today {
   flex-shrink: 0;
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
   color: #4b5563;
   font-weight: var(--title-font-weight);
 }
@@ -415,6 +426,13 @@ header {
   line-height: 1.1;
   margin-top: 1px;
   font-weight: 400;
+}
+.cal-day .cal-lunar-date {
+  display: block;
+  font-size: 9px;
+  line-height: 1.1;
+  color: var(--text-muted);
+  margin-top: 1px;
   color: #b71c1c;
   letter-spacing: 0;
   overflow: hidden;
@@ -994,6 +1012,8 @@ header {
 }
 .view-toggle-btn {
   flex-shrink: 0;
+  width: fit-content;
+  min-width: 0;
   padding: 2px 10px;
   font-size: calc(var(--font-size) + 1pt);
   font-weight: var(--title-font-weight);
@@ -1005,6 +1025,7 @@ header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
   line-height: 1;
   transition: background 0.15s, color 0.15s;
   outline: none;
@@ -1036,6 +1057,20 @@ header {
   color: #000000;
 }
 
+.panel-title.panel-title-todo .view-toggle-btn {
+  padding: 4px 6px;
+  line-height: 1.25;
+  border-radius: 4px;
+  align-self: center;
+}
+.panel-title.panel-title-todo .view-toggle-btn.view-toggle-cal {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+.panel-title.panel-title-todo .view-toggle-btn.view-toggle-todo {
+  padding-left: 5px;
+  padding-right: 5px;
+}
 .panel-title.panel-title-todo .view-toggle-btn,
 .panel-title.panel-title-todo .view-toggle-btn .view-toggle-arrow {
   color: #000000 !important;
@@ -1217,7 +1252,12 @@ header {
   color: #b71c1c;
   padding: 0 2px;
   letter-spacing: 0.02em;
-  -webkit-font-smoothing: antialiased;
+}
+.cal-full-day-head .cal-full-lunar-date {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0 2px;
 }
 .cal-full-day-head .cal-full-special-date-name {
   text-align: center;
@@ -1475,17 +1515,51 @@ header {
   font-size: var(--font-size);
 }
 
-/* 할일보기 + 버튼: 메모열 #memo-add-next-to-reorder와 동일 스타일 */
+/* 할일보기 + 버튼: 원형, 색상 흐리게, 크기 약간 축소 */
+.todo-col .section-add-btn,
+.todo-col .section-add-btn.btn-icon {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: none !important;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--text-muted, #9ca3af);
+  opacity: 0.85;
+  font-size: 16px;
+  line-height: 0.88;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
+  cursor: pointer;
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  box-shadow: none;
+}
+.todo-col .section-add-btn:hover,
+.todo-col .section-add-btn.btn-icon:hover {
+  color: var(--primary);
+  background: #fff;
+  opacity: 1;
+  border: none !important;
+  box-shadow: none;
+}
 .section-add-btn {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: none;
   border-radius: 50%;
   background: #fff;
-  color: var(--text);
-  font-size: 20px;
+  color: var(--text-muted, #9ca3af);
+  opacity: 0.85;
+  font-size: 16px;
   line-height: 0.88;
   display: inline-flex;
   align-items: center;
@@ -1499,6 +1573,7 @@ header {
 .section-add-btn:hover {
   color: var(--primary);
   background: #fff;
+  opacity: 1;
 }
 
 .section-morning { background: transparent; }
@@ -2730,6 +2805,10 @@ header {
   max-width: 320px;
 }
 
+#special-dates-modal .modal-content {
+  text-align: left;
+}
+
 .modal-xs {
   max-width: 260px;
 }
@@ -2741,31 +2820,130 @@ header {
 }
 .special-dates-add {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
-  align-items: center;
   margin-bottom: 12px;
-}
-#special-dates-modal .special-dates-add #special-date-label {
-  flex-basis: 100%;
   width: 100%;
-  margin-bottom: 2px;
+  box-sizing: border-box;
 }
-.special-dates-add select {
-  min-width: 90px;
+.special-dates-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
-.special-dates-add #special-date-category {
-  min-width: 100px;
+.special-dates-label-row #special-date-label {
+  flex: 1;
+  min-width: 0;
+}
+#special-dates-modal #special-date-label {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: var(--font-size);
+  font-family: var(--font-family);
+}
+#special-dates-modal #special-date-label:focus {
+  outline: none;
+  box-shadow: none;
+}
+.special-date-selected-display {
+  flex-shrink: 0;
+  font-size: var(--font-size);
+  color: var(--text);
+  font-family: var(--font-family);
+  line-height: 1.4;
+}
+
+/* 반복일정 모달: 분류 | [캘린더+반복없음] | 추가. 추가 버튼 오른쪽 끝 = 명칭 박스 오른쪽 끝 */
+#special-dates-modal .special-dates-control-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-right: 88px; /* 추가 버튼 오른쪽 끝 = 위 명칭 박스 오른쪽 끝 */
+}
+#special-dates-modal .special-dates-control-row #special-date-add-btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  padding: 6px 8px;
+  line-height: 1.4;
+  font-size: var(--font-size);
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: 0;
+}
+#special-dates-modal .special-dates-control-row #special-date-category {
+  flex: 0 0 auto;
+  min-width: 70px;
+  font-size: var(--font-size);
+  font-family: var(--font-family);
+  line-height: 1.4;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--panel);
+}
+#special-dates-modal .special-dates-control-row #special-date-category:focus {
+  outline: none;
+  box-shadow: none;
+}
+/* 캘린더 + 반복없음 한 묶음: 날짜 102px 고정, 반복은 그 옆에 바로 붙음 */
+#special-dates-modal .special-dates-control-row .special-date-input-center-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* 캘린더 아이콘만 보이게, 좌우 여백 최소화 */
+#special-dates-modal .special-dates-control-row .special-date-input-center-wrap #special-date-input {
+  flex: 0 0 24px;
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  box-sizing: border-box;
+  padding: 0;
+}
+#special-dates-modal .special-dates-control-row .special-date-input-center-wrap #special-date-repeat {
+  flex: 0 0 auto;
+  min-width: 70px;
+  font-size: var(--font-size);
+  font-family: var(--font-family);
+  line-height: 1.4;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--panel);
+}
+#special-dates-modal .special-dates-control-row .special-date-input-center-wrap #special-date-repeat:focus {
+  outline: none;
+  box-shadow: none;
 }
 .special-dates-add .special-dates-range-group {
   flex-basis: 100%;
   width: 100%;
   margin-top: 4px;
 }
+#special-dates-range-group[hidden] {
+  display: none !important;
+}
+#special-dates-range-group:not([hidden]) {
+  display: block;
+}
 .special-dates-add .special-dates-range-group input[type="date"] {
   flex: none;
 }
-.special-dates-add input[type="date"],
 .special-dates-add input[type="text"] {
   flex: 1;
   min-width: 0;
@@ -2774,7 +2952,6 @@ header {
   border-radius: 4px;
   font-size: var(--font-size);
 }
-#special-dates-modal .special-dates-add input[type="date"],
 #special-dates-modal .special-dates-range-group input[type="date"] {
   font-size: var(--font-size);
   line-height: 1.4;
@@ -2785,8 +2962,123 @@ header {
   outline: none;
   background: transparent;
 }
-/* 날짜 입력: 달력 아이콘 크게, 주변 박스 테두리 없음 */
-#special-dates-modal .special-dates-add input[type="date"]::-webkit-calendar-picker-indicator,
+.special-date-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.special-date-input-wrap #special-date-input {
+  min-width: 0;
+}
+#special-dates-modal .special-dates-control-row .special-date-input-center-wrap {
+  overflow: visible;
+}
+#special-dates-modal .special-dates-add #special-date-input {
+  min-width: 24px;
+}
+/* 반복일정 시작일: 캘린더 아이콘, 입력 박스 테두리 제거 */
+#special-dates-modal .special-dates-add #special-date-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: var(--font-size);
+  line-height: 1.4;
+  min-height: 1.5em;
+  box-sizing: border-box;
+  color: transparent;
+  caret-color: transparent;
+}
+#special-dates-modal .special-dates-add #special-date-input::-webkit-datetime-edit {
+  display: none;
+}
+#special-dates-modal .special-dates-add #special-date-input::-webkit-calendar-picker-indicator {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6370' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 17px 17px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+#special-dates-modal .special-dates-add #special-date-input::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+.special-date-calendar-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 18px;
+  line-height: 1;
+}
+.special-date-picker-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.special-date-picker-title-row h3 {
+  margin: 0;
+  font-size: 1.1em;
+}
+.special-date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.special-date-picker-month-year {
+  font-weight: 600;
+  min-width: 100px;
+  text-align: center;
+}
+.special-date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.special-date-picker-grid .cal-day-head {
+  padding: 4px 2px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 11px;
+}
+.special-date-picker-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.special-date-picker-day:hover {
+  background: #e3f2fd;
+  color: var(--primary);
+}
+.special-date-picker-day.other-month {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.special-date-picker-day.cal-sun { color: #b71c1c; }
+.special-date-picker-day.cal-sat { color: #1565c0; }
+/* 날짜 입력: 달력 아이콘 크게, 주변 박스 테두리 없음 (기간 설정용 date만) */
 #special-dates-modal .special-dates-range-group input[type="date"]::-webkit-calendar-picker-indicator {
   width: 16px;
   height: 16px;
@@ -2805,7 +3097,6 @@ header {
   -webkit-appearance: none;
   appearance: none;
 }
-#special-dates-modal .special-dates-add input[type="date"]::-moz-focus-inner,
 #special-dates-modal .special-dates-range-group input[type="date"]::-moz-focus-inner {
   border: 0;
   padding: 0;
@@ -2848,6 +3139,15 @@ header {
 .special-dates-item-repeat {
   flex-shrink: 0;
   font-size: 10px;
+}
+.special-dates-item-lunar {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--primary);
+  background: #e3f2fd;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
   color: var(--text-muted);
   background: #e8eaed;
   padding: 2px 6px;
