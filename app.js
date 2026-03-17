@@ -9,9 +9,35 @@
   const STORAGE_MEMOS = 'schedule_memos';
   const STORAGE_MEMO_TABS = 'schedule_memo_tabs';
   const STORAGE_DELETED_MEMO_TABS = 'schedule_deleted_memo_tabs';
+  const STORAGE_SPECIAL_DATES = 'schedule_special_dates';
+
+  const FIREBASE_DB_URL = 'https://zaf-todo-default-rtdb.firebaseio.com';
+  const FIREBASE_BASE_PATH = '/schedule_v1';
+
   const memoryStore = {};
+
+  async function syncKeyFromFirebase(key) {
+    try {
+      const res = await fetch(FIREBASE_DB_URL + FIREBASE_BASE_PATH + '/' + encodeURIComponent(key) + '.json');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data === null || data === undefined) return;
+      memoryStore[key] = data;
+    } catch (_) {}
+  }
+
+  async function syncKeyToFirebase(key, value) {
+    try {
+      await fetch(FIREBASE_DB_URL + FIREBASE_BASE_PATH + '/' + encodeURIComponent(key) + '.json', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(value)
+      });
+    } catch (_) {}
+  }
+
   function getFromStore(key) { return memoryStore[key] ?? null; }
-  function setToStore(key, value) { memoryStore[key] = value; }
+  function setToStore(key, value) { memoryStore[key] = value; syncKeyToFirebase(key, value); }
   const DEFAULT_MEMO_TABS = ['개인', '시타마치', '슈가맨워크', '부동산투자', '인공지능(AI)', '기타'];
   const MEMO_PASTEL_COLORS = ['#B3E5FC', '#FFF59D', '#C8E6C9', '#F8BBD9', '#B2EBF2', '#E1BEE7', '#FFCC80', '#B2DFDB', '#FFAB91', '#CFD8DC'];
   const MEMO_PASTEL_COLOR_NAMES = ['하늘색', '노란색', '연두색', '분홍색', '청록색', '연보라', '주황색', '민트색', '산호색', '연회색'];
@@ -93,10 +119,12 @@
     memoDropTarget: null,
     memoReorderDropTarget: null,
     draggingMemoReorder: false,
+    repeatDeleteTarget: null,
     completedRepeatingInstances: {},
     viewMode: 'todo',
     calendarFullYear: new Date().getFullYear(),
-    calendarFullMonth: new Date().getMonth()
+    calendarFullMonth: new Date().getMonth(),
+    specialDates: []
   };
 
   function dateKey(d) {
@@ -107,6 +135,46 @@
 
   function todayKey() {
     return dateKey(new Date());
+  }
+
+  function loadSpecialDates() {
+    try {
+      const raw = getFromStore(STORAGE_SPECIAL_DATES);
+      state.specialDates = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(state.specialDates)) state.specialDates = [];
+      state.specialDates.forEach(function (s, i) {
+        if (!s.id) s.id = 'sd_legacy_' + i + '_' + Date.now();
+        if (!s.repeat) s.repeat = 'none';
+        if (s.repeat === 'range' && (s.rangeStart === undefined || s.rangeEnd === undefined)) { s.rangeStart = s.rangeStart || ''; s.rangeEnd = s.rangeEnd || ''; }
+        if (!s.memoTabId && state.memoTabs && state.memoTabs.length) s.memoTabId = getPersonalTabId() || state.memoTabs[0].id;
+      });
+    } catch (_) {
+      state.specialDates = [];
+    }
+  }
+  function saveSpecialDates() {
+    setToStore(STORAGE_SPECIAL_DATES, JSON.stringify(state.specialDates));
+  }
+  function specialDateAppliesToDate(s, dkey) {
+    if (!s.dateKey || dkey.length < 10) return s.dateKey === dkey;
+    var date = new Date(dkey);
+    var origin = new Date(s.dateKey);
+    if (isNaN(date.getTime()) || isNaN(origin.getTime())) return s.dateKey === dkey;
+    var start = s.rangeStart ? new Date(s.rangeStart) : null;
+    var end = s.rangeEnd ? new Date(s.rangeEnd) : null;
+    if (start && date < start) return false;
+    if (end && date > end) return false;
+    if (!s.repeat || s.repeat === 'none') return s.dateKey === dkey;
+    if (s.repeat === 'daily') return true;
+    if (s.repeat === 'weekly') return date.getDay() === origin.getDay();
+    if (s.repeat === 'monthly') return date.getDate() === origin.getDate();
+    if (s.repeat === 'yearly') return s.dateKey.slice(5, 10) === dkey.slice(5, 10);
+    if (s.repeat === 'range') return true;
+    return false;
+  }
+  function getSpecialDateLabels(dkey) {
+    if (!state.specialDates || !state.specialDates.length) return [];
+    return state.specialDates.filter(function (s) { return specialDateAppliesToDate(s, dkey); }).map(function (s) { return s.label || ''; }).filter(Boolean);
   }
 
   const FIXED_HOLIDAYS = {
@@ -158,129 +226,27 @@
   }
 
   function loadCalendarMemo() {
+    try {
+      var el = document.getElementById('calendar-memo');
+      if (!el) return;
+      var raw = getFromStore(STORAGE_CALENDAR_MEMO);
+      if (raw && typeof raw === 'string' && raw.trim()) el.innerHTML = raw;
+    } catch (_) {}
   }
 
   function saveCalendarMemo() {
     try {
-      const quill = window.calendarMemoQuill;
-      if (quill && quill.root) {
-        setToStore(STORAGE_CALENDAR_MEMO, quill.root.innerHTML || '');
-      }
+      var el = document.getElementById('calendar-memo');
+      if (el) setToStore(STORAGE_CALENDAR_MEMO, el.innerHTML || '');
     } catch (_) {}
   }
 
-  function initCalendarMemoQuill() {
-    const container = document.getElementById('calendar-memo');
-    if (!container || container.querySelector('.ql-container')) return;
-    var QuillGlobal = typeof Quill !== 'undefined' ? Quill : (typeof window !== 'undefined' && window.Quill);
-    if (!QuillGlobal) return;
-    try {
-      var sizeValues = [];
-      for (var i = 8; i <= 32; i += 2) sizeValues.push(i + 'px');
-      try {
-        var SizeStyle = QuillGlobal.import('attributors/style/size');
-        if (SizeStyle) { SizeStyle.whitelist = sizeValues; QuillGlobal.register(SizeStyle, true); }
-      } catch (_) {
-        try {
-          var Parchment = QuillGlobal.import('parchment');
-          if (Parchment && Parchment.Attributor && Parchment.Attributor.Style) {
-            var Sa = new Parchment.Attributor.Style('size', 'font-size', { scope: Parchment.Scope.INLINE });
-            Sa.whitelist = sizeValues;
-            QuillGlobal.register(Sa, true);
-          }
-        } catch (__) {
-          var Inline = QuillGlobal.import('blots/inline');
-          var SizeBlot = function (node) { Inline.call(this, node); };
-          SizeBlot.prototype = Object.create(Inline.prototype);
-          SizeBlot.prototype.constructor = SizeBlot;
-          SizeBlot.blotName = 'size';
-          SizeBlot.tagName = 'SPAN';
-          SizeBlot.create = function (value) {
-            var node = document.createElement('SPAN');
-            if (value && sizeValues.indexOf(value) !== -1) node.style.fontSize = value;
-            return node;
-          };
-          SizeBlot.formats = function (domNode) {
-            var s = domNode.style && domNode.style.fontSize;
-            return s && sizeValues.indexOf(s) !== -1 ? s : undefined;
-          };
-          QuillGlobal.register(SizeBlot, true);
-        }
-      }
-      try {
-        var Underline = QuillGlobal.import('formats/underline');
-        if (Underline) QuillGlobal.register(Underline, true);
-      } catch (_) {}
-      var toolbarOpts = [
-        [{ 'size': sizeValues }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['link'],
-        ['clean']
-      ];
-      window.calendarMemoQuill = new QuillGlobal(container, {
-        theme: 'bubble',
-        placeholder: '달력 아래 메모를 입력하세요',
-        modules: {
-          toolbar: toolbarOpts
-        }
-      });
-      var q = window.calendarMemoQuill;
-      var lastRange = null;
-      q.on('selection-change', function (range) {
-        if (range) lastRange = { index: range.index, length: range.length };
-        else lastRange = null;
-      });
-      var applyUnderline = function () {
-        var r = lastRange || q.getSelection(true);
-        if (!r || r.length === 0) return;
-        q.focus();
-        setTimeout(function () {
-          q.setSelection(r.index, r.length);
-          var fmt = q.getFormat(r);
-          q.format('underline', !fmt.underline);
-        }, 0);
-      };
-      var applyStrike = function () {
-        var r = lastRange || q.getSelection(true);
-        if (!r || r.length === 0) return;
-        q.focus();
-        setTimeout(function () {
-          q.setSelection(r.index, r.length);
-          var fmt = q.getFormat(r);
-          q.format('strike', !fmt.strike);
-        }, 0);
-      };
-      q.root.addEventListener('keydown', function (e) {
-        if (e.ctrlKey && e.key === 'u') {
-          e.preventDefault();
-          applyUnderline();
-        }
-      });
-      function onToolbarUnderline(e) {
-        if (!e.target.closest('.ql-underline')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        applyUnderline();
-      }
-      function onToolbarStrike(e) {
-        if (!e.target.closest('.ql-strike')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        applyStrike();
-      }
-      document.addEventListener('mousedown', onToolbarUnderline, true);
-      document.addEventListener('mousedown', onToolbarStrike, true);
-      var raw = getFromStore(STORAGE_CALENDAR_MEMO);
-      if (raw && raw.trim()) {
-        window.calendarMemoQuill.root.innerHTML = raw;
-      }
-      window.calendarMemoQuill.on('text-change', function () { saveCalendarMemo(); });
-      window.addEventListener('beforeunload', saveCalendarMemo);
-    } catch (e) {
-      console.warn('Quill init failed', e);
-    }
+  function initCalendarMemo() {
+    var el = document.getElementById('calendar-memo');
+    if (!el || el.querySelector('.ql-container')) return;
+    el.addEventListener('input', saveCalendarMemo);
+    el.addEventListener('blur', saveCalendarMemo);
+    window.addEventListener('beforeunload', saveCalendarMemo);
   }
 
   function loadTodos() {
@@ -645,20 +611,69 @@
     renderTodos();
   }
 
-  function deleteTodo(id, fromKey) {
+  function openRepeatDeleteModal(instanceId, key) {
+    const modal = document.getElementById('repeat-delete-modal');
+    if (!modal) {
+      deleteTodoConfirm(instanceId, key, 'all');
+      return;
+    }
+    state.repeatDeleteTarget = { id: instanceId, key };
+    const radios = modal.querySelectorAll('input[name="repeat-delete-scope"]');
+    radios.forEach(r => { if (r.value === 'single') r.checked = true; });
+    modal.classList.add('show');
+  }
+
+  function closeRepeatDeleteModal() {
+    const modal = document.getElementById('repeat-delete-modal');
+    if (modal) modal.classList.remove('show');
+    state.repeatDeleteTarget = null;
+  }
+
+  function deleteTodoConfirm(id, fromKey, scope) {
     const key = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
     const isRepeatingInstance = /_\d{4}-\d{2}-\d{2}$/.test(String(id));
     const realId = isRepeatingInstance ? String(id).replace(/_\d{4}-\d{2}-\d{2}$/, '') : id;
-    if (!isRepeatingInstance && key && state.todos[key]) {
+
+    if (isRepeatingInstance) {
+      if (scope === 'single') {
+        state.completedRepeatingInstances[id] = true;
+        saveCompletedRepeating();
+      } else if (scope === 'after') {
+        const rep = state.repeatingTodos.find(r => r.id === realId);
+        if (rep) {
+          const cur = new Date(key);
+          const end = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - 1);
+          const endKey = dateKey(end);
+          if (!rep.rangeEnd || rep.rangeEnd > endKey) {
+            rep.rangeEnd = endKey;
+            saveRepeating();
+          }
+        }
+      } else {
+        state.repeatingTodos = state.repeatingTodos.filter(r => r.id !== realId);
+        saveRepeating();
+        Object.keys(state.completedRepeatingInstances).forEach(k => {
+          if (k.startsWith(realId + '_')) delete state.completedRepeatingInstances[k];
+        });
+        saveCompletedRepeating();
+      }
+    } else if (key && state.todos[key]) {
       state.todos[key] = state.todos[key].filter(t => t.id !== id);
       saveTodos();
     }
-    if (isRepeatingInstance) {
-      state.repeatingTodos = state.repeatingTodos.filter(r => r.id !== realId);
-      saveRepeating();
-    }
+
     renderTodos();
     if (state.viewMode === 'calendarFull') renderCalendarFull();
+  }
+
+  function deleteTodo(id, fromKey) {
+    const key = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
+    const isRepeatingInstance = /_\d{4}-\d{2}-\d{2}$/.test(String(id));
+    if (isRepeatingInstance) {
+      openRepeatDeleteModal(id, key);
+      return;
+    }
+    deleteTodoConfirm(id, key, 'all');
   }
 
   function renderCalendar() {
@@ -686,11 +701,16 @@
     }
     function setCellContent(cell, num, dkey) {
       const holidayName = getHolidayName(dkey);
-      if (holidayName) {
-        cell.innerHTML = `<span class="cal-num">${num}</span><span class="cal-holiday-name">${holidayName}</span>`;
-      } else {
-        cell.innerHTML = `<span class="cal-num">${num}</span>`;
+      const specialLabels = getSpecialDateLabels(dkey);
+      var above = '';
+      if (specialLabels.length) {
+        const escaped = specialLabels.map(function (l) { return (l || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }).join(', ');
+        above = '<span class="cal-special-date-name">' + escaped + '</span>';
       }
+      var below = '';
+      if (holidayName) below = '<span class="cal-holiday-name">' + holidayName + '</span>';
+      var html = '<div class="cal-day-inner"><div class="cal-day-above">' + above + '</div><div class="cal-day-num-wrap"><span class="cal-num">' + num + '</span></div><div class="cal-day-below">' + below + '</div></div>';
+      cell.innerHTML = html;
     }
     for (let i = 0; i < totalCells; i++) {
       const cell = document.createElement('div');
@@ -768,7 +788,21 @@
     let dayCount = 0;
     let nextMonthDay = 0;
     const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
-
+    function fullDayHeadHtml(num, dkey, addBtn) {
+      const holidayName = getHolidayName(dkey);
+      const specialLabels = getSpecialDateLabels(dkey);
+      var aboveHtml = '';
+      if (specialLabels.length) {
+        const escaped = specialLabels.map(function (l) { return (l || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }).join(', ');
+        aboveHtml = '<div class="cal-full-day-head-labels cal-full-day-head-labels-above"><span class="cal-full-special-date-name">' + escaped + '</span></div>';
+      }
+      var belowHtml = '';
+      if (holidayName) belowHtml = '<div class="cal-full-day-head-labels cal-full-day-head-labels-below"><span class="cal-full-holiday-name">' + holidayName + '</span></div>';
+      let h = '<div class="cal-full-day-head"><div class="cal-full-day-head-center">' + aboveHtml + '<span class="cal-full-num">' + num + '</span>' + belowHtml + '</div>';
+      if (addBtn) h += '<button type="button" class="cal-full-add" data-date="' + dkey + '" aria-label="할일 추가">⊕</button>';
+      h += '</div><div class="cal-full-todos-wrap"><ul class="cal-full-todos" data-date="' + dkey + '"' + (addBtn ? ' data-section="morning"' : '') + '></ul></div>';
+      return h;
+    }
     for (let i = 0; i < totalCells; i++) {
       const cell = document.createElement('div');
       const dow = i % 7;
@@ -779,26 +813,23 @@
       if (isPrevMonth) {
         const prevMonth = new Date(y, m, -(startDay - 1 - i));
         dkey = dateKey(prevMonth);
-        const holidayNamePrev = getHolidayName(dkey);
-        if (holidayNamePrev) cell.classList.add('cal-holiday');
+        if (getHolidayName(dkey)) cell.classList.add('cal-holiday');
         cell.dataset.date = dkey;
-        cell.innerHTML = `<div class="cal-full-day-head"><span class="cal-full-num">${prevMonth.getDate()}</span>${holidayNamePrev ? `<span class="cal-full-holiday-name">${holidayNamePrev}</span>` : ''}</div><div class="cal-full-todos-wrap"><ul class="cal-full-todos" data-date="${dkey}"></ul></div>`;
+        cell.innerHTML = fullDayHeadHtml(prevMonth.getDate(), dkey, false);
       } else if (dayCount < daysInMonth) {
         dayCount++;
         dkey = `${y}-${String(m + 1).padStart(2, '0')}-${String(dayCount).padStart(2, '0')}`;
-        const holidayNameCur = getHolidayName(dkey);
+        if (getHolidayName(dkey)) cell.classList.add('cal-holiday');
         if (dkey === today) cell.classList.add('today');
-        if (holidayNameCur) cell.classList.add('cal-holiday');
         cell.dataset.date = dkey;
-        cell.innerHTML = `<div class="cal-full-day-head"><span class="cal-full-num">${dayCount}</span>${holidayNameCur ? `<span class="cal-full-holiday-name">${holidayNameCur}</span>` : ''}<button type="button" class="cal-full-add" data-date="${dkey}" aria-label="할일 추가">⊕</button></div><div class="cal-full-todos-wrap"><ul class="cal-full-todos" data-date="${dkey}" data-section="morning"></ul></div>`;
+        cell.innerHTML = fullDayHeadHtml(dayCount, dkey, true);
       } else {
         nextMonthDay++;
         const nextMonth = new Date(y, m + 1, nextMonthDay);
         dkey = dateKey(nextMonth);
-        const holidayNameNext = getHolidayName(dkey);
-        if (holidayNameNext) cell.classList.add('cal-holiday');
+        if (getHolidayName(dkey)) cell.classList.add('cal-holiday');
         cell.dataset.date = dkey;
-        cell.innerHTML = `<div class="cal-full-day-head"><span class="cal-full-num">${nextMonth.getDate()}</span>${holidayNameNext ? `<span class="cal-full-holiday-name">${holidayNameNext}</span>` : ''}</div><div class="cal-full-todos-wrap"><ul class="cal-full-todos" data-date="${dkey}"></ul></div>`;
+        cell.innerHTML = fullDayHeadHtml(nextMonth.getDate(), dkey, false);
       }
 
       const bySection = getTodosForDate(dkey);
@@ -2366,6 +2397,28 @@ delBtn.title = '삭제';
     state.fromReorderModal = false;
   });
 
+  (function setupRepeatDeleteModal() {
+    const modal = document.getElementById('repeat-delete-modal');
+    if (!modal) return;
+    const confirmBtn = document.getElementById('repeat-delete-confirm');
+    const cancelBtn = document.getElementById('repeat-delete-cancel');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        if (!state.repeatDeleteTarget) { closeRepeatDeleteModal(); return; }
+        const { id, key } = state.repeatDeleteTarget;
+        const radios = modal.querySelectorAll('input[name="repeat-delete-scope"]');
+        let scope = 'single';
+        radios.forEach(r => { if (r.checked) scope = r.value; });
+        deleteTodoConfirm(id, key, scope);
+        closeRepeatDeleteModal();
+      });
+    }
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        closeRepeatDeleteModal();
+      });
+    }
+  })();
 
   document.getElementById('memo-item-add-zone').addEventListener('click', () => {
     if (state.activeMemoTabId) addMemoItem(state.activeMemoTabId);
@@ -2400,9 +2453,9 @@ delBtn.title = '삭제';
   });
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initCalendarMemoQuill);
+    document.addEventListener('DOMContentLoaded', initCalendarMemo);
   } else {
-    initCalendarMemoQuill();
+    initCalendarMemo();
   }
 
   document.getElementById('cal-year-prev').addEventListener('click', () => {
@@ -2437,6 +2490,91 @@ delBtn.title = '삭제';
     const [y, m, d] = cell.dataset.date.split('-').map(Number);
     setSelectedDate(new Date(y, m - 1, d));
     setViewMode('todo');
+  });
+
+  function openSpecialDatesModal() {
+    const modal = document.getElementById('special-dates-modal');
+    if (!modal) return;
+    var categoryEl = document.getElementById('special-date-category');
+    if (categoryEl && state.memoTabs && state.memoTabs.length) {
+      categoryEl.innerHTML = '';
+      state.memoTabs.forEach(function (tab) {
+        if (isDeletedTabId(tab.id)) return;
+        var opt = document.createElement('option');
+        opt.value = tab.id;
+        opt.textContent = tab.name || '(이름 없음)';
+        categoryEl.appendChild(opt);
+      });
+      categoryEl.value = getPersonalTabId() || (state.memoTabs[0] ? state.memoTabs[0].id : '');
+    }
+    var repeatEl = document.getElementById('special-date-repeat');
+    var rangeGroup = document.getElementById('special-dates-range-group');
+    if (rangeGroup) rangeGroup.style.display = (repeatEl && repeatEl.value === 'range') ? 'block' : 'none';
+    renderSpecialDatesList();
+    modal.classList.add('show');
+  }
+  function closeSpecialDatesModal() {
+    const modal = document.getElementById('special-dates-modal');
+    if (modal) modal.classList.remove('show');
+  }
+  function renderSpecialDatesList() {
+    const listEl = document.getElementById('special-dates-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    (state.specialDates || []).forEach(function (s) {
+      const li = document.createElement('li');
+      li.className = 'special-dates-item';
+      var tab = state.memoTabs && s.memoTabId ? state.memoTabs.find(function (t) { return t.id === s.memoTabId; }) : null;
+      var categoryName = (tab && tab.name) ? tab.name : '(분류 없음)';
+      var repeatLabels = { daily: '매일', weekly: '매주', monthly: '매월', yearly: '매년', range: '기간' };
+      var repeatText = (s.repeat && s.repeat !== 'none' && repeatLabels[s.repeat]) ? '<span class="special-dates-item-repeat">' + repeatLabels[s.repeat] + '</span>' : '';
+      if (s.repeat === 'range' && (s.rangeStart || s.rangeEnd)) repeatText = '<span class="special-dates-item-repeat">' + (s.rangeStart || '') + ' ~ ' + (s.rangeEnd || '') + '</span>';
+      li.innerHTML = '<span class="special-dates-item-category">' + (categoryName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span> <span class="special-dates-item-label">' + (s.label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span> <span class="special-dates-item-date">' + (s.dateKey || '') + '</span> ' + repeatText + '<button type="button" class="btn-icon special-dates-item-del" data-id="' + (s.id || '') + '" aria-label="삭제">×</button>';
+      listEl.appendChild(li);
+    });
+  }
+  document.getElementById('cal-special-dates-btn').addEventListener('click', openSpecialDatesModal);
+  document.getElementById('special-dates-close').addEventListener('click', closeSpecialDatesModal);
+  document.getElementById('special-date-repeat').addEventListener('change', function () {
+    var rangeGroup = document.getElementById('special-dates-range-group');
+    if (rangeGroup) rangeGroup.style.display = this.value === 'range' ? 'block' : 'none';
+  });
+  document.getElementById('special-date-add-btn').addEventListener('click', function () {
+    const dateInput = document.getElementById('special-date-input');
+    const labelInput = document.getElementById('special-date-label');
+    const categoryEl = document.getElementById('special-date-category');
+    const repeatEl = document.getElementById('special-date-repeat');
+    const rangeStartEl = document.getElementById('special-date-range-start');
+    const rangeEndEl = document.getElementById('special-date-range-end');
+    const dateVal = dateInput && dateInput.value ? dateInput.value.trim() : '';
+    const labelVal = labelInput && labelInput.value ? labelInput.value.trim() : '';
+    const memoTabId = (categoryEl && categoryEl.value) ? categoryEl.value : (getPersonalTabId() || (state.memoTabs && state.memoTabs[0] ? state.memoTabs[0].id : ''));
+    const repeatVal = (repeatEl && repeatEl.value) ? repeatEl.value : 'daily';
+    const rangeStartVal = (repeatVal === 'range' && rangeStartEl && rangeStartEl.value) ? rangeStartEl.value.trim() : '';
+    const rangeEndVal = (repeatVal === 'range' && rangeEndEl && rangeEndEl.value) ? rangeEndEl.value.trim() : '';
+    if (!labelVal) return;
+    if (!dateVal || !/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) return;
+    if (repeatVal === 'range' && (!rangeStartVal || !rangeEndVal)) return;
+    const id = 'sd_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    state.specialDates = state.specialDates || [];
+    state.specialDates.push({ id: id, dateKey: dateVal, label: labelVal, memoTabId: memoTabId || undefined, repeat: repeatVal, rangeStart: rangeStartVal, rangeEnd: rangeEndVal });
+    saveSpecialDates();
+    renderCalendar();
+    if (state.viewMode === 'calendarFull') renderCalendarFull();
+    renderSpecialDatesList();
+    labelInput.value = '';
+    dateInput.value = '';
+    if (rangeStartEl) rangeStartEl.value = '';
+    if (rangeEndEl) rangeEndEl.value = '';
+  });
+  document.getElementById('special-dates-list').addEventListener('click', function (e) {
+    const btn = e.target.closest('.special-dates-item-del');
+    if (!btn || !btn.dataset.id) return;
+    state.specialDates = (state.specialDates || []).filter(function (s) { return s.id !== btn.dataset.id; });
+    saveSpecialDates();
+    renderCalendar();
+    if (state.viewMode === 'calendarFull') renderCalendarFull();
+    renderSpecialDatesList();
   });
 
   const todoListEl = document.getElementById('todo-list');
@@ -2670,26 +2808,49 @@ delBtn.title = '삭제';
     });
   }
 
-  loadQuote();
-  loadTodos();
-  loadRepeating();
+  async function initFromFirebase() {
+    await Promise.all([
+      syncKeyFromFirebase(STORAGE_QUOTE),
+      syncKeyFromFirebase(STORAGE_CALENDAR_MEMO),
+      syncKeyFromFirebase(STORAGE_TODOS),
+      syncKeyFromFirebase(STORAGE_TODOS_COMPLETED),
+      syncKeyFromFirebase(STORAGE_REPEATING),
+      syncKeyFromFirebase(STORAGE_MEMOS),
+      syncKeyFromFirebase(STORAGE_MEMO_TABS),
+      syncKeyFromFirebase(STORAGE_DELETED_MEMO_TABS),
+      syncKeyFromFirebase(STORAGE_SPECIAL_DATES)
+    ]);
 
-  loadMemoTabs();
-  loadMemos();
+    loadQuote();
+    loadTodos();
+    loadRepeating();
+    loadSpecialDates();
+    loadCalendarMemo();
 
-  /* 메모 처음에는 전체 메뉴가 모두 보이도록 */
-  state.viewAllMemos = true;
-  state.activeMemoTabId = null;
-  const memoCol = document.querySelector('.memo-col');
-  if (memoCol) memoCol.classList.add('memo-view-all');
-  renderMemoTabs();
-  showMemoContent();
+    loadMemoTabs();
+    var specialDatesChanged = false;
+    (state.specialDates || []).forEach(function (s) {
+      if (!s.memoTabId && state.memoTabs && state.memoTabs.length) { s.memoTabId = getPersonalTabId() || state.memoTabs[0].id; specialDatesChanged = true; }
+    });
+    if (specialDatesChanged) saveSpecialDates();
+    loadMemos();
 
-  state.selectedDate = new Date();
+    /* 메모 처음에는 전체 메뉴가 모두 보이도록 */
+    state.viewAllMemos = true;
+    state.activeMemoTabId = null;
+    const memoCol = document.querySelector('.memo-col');
+    if (memoCol) memoCol.classList.add('memo-view-all');
+    renderMemoTabs();
+    showMemoContent();
 
-  renderCalendar();
-  renderTodos();
-  updateTodoViewCaption();
+    state.selectedDate = new Date();
+
+    renderCalendar();
+    renderTodos();
+    updateTodoViewCaption();
+  }
+
+  initFromFirebase();
 
   document.addEventListener('dragover', e => {
     if (state.draggedTodoPayload) {

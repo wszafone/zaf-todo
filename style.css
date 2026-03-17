@@ -11,7 +11,9 @@
   --section-afternoon: #f0f8e8;
   --section-evening: #f5e8f8;
   --danger: #c53030;
-  --font-family: 'Nanum Barun Gothic', 'NanumBarunGothic', 'Malgun Gothic', '맑은 고딕', sans-serif;
+  --panel-title-color: #000000;
+  --title-font-weight: 600;
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-size: 12px;
 }
 
@@ -67,10 +69,10 @@ header {
 .quote-line {
   position: relative;
   z-index: 1;
-  font-family: 'NanumSquare', 'Nanum Square', var(--font-family);
+  font-family: var(--font-family);
   font-size: 20pt;
   line-height: 1.25;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--text);
   outline: none;
   width: 100%;
@@ -147,23 +149,23 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   font-size: calc(var(--font-size) + 1pt);
   border-bottom: 1px solid var(--border);
   background: #e3f2fd;
   text-align: center;
-  color: #000000;
+  color: var(--panel-title-color);
 }
 .panel-title.panel-title-todo {
   justify-content: space-between;
   height: 34px;
   min-height: 34px;
-  color: #000000;
+  color: var(--panel-title-color);
 }
 .panel-title .todo-view-caption,
 .panel-title .nav-btn,
 .panel-title .cal-month-year {
-  color: #000000;
+  color: var(--panel-title-color);
 }
 .memo-tab-bar .memo-category-select,
 .memo-tab-bar .btn-icon {
@@ -190,7 +192,7 @@ header {
 .calendar-col .calendar-header .cal-month-year {
   font-size: var(--font-size);
   line-height: 1;
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   color: #4b5563;
 }
 .calendar-col .calendar-header .nav-btn {
@@ -198,7 +200,7 @@ header {
   background: transparent;
   font-size: var(--font-size);
   line-height: 1;
-  font-weight: 800;
+  font-weight: var(--title-font-weight);
   padding: 2px 5px;
   color: #000;
 }
@@ -212,6 +214,24 @@ header {
 }
 .calendar-col .calendar-header #cal-year-prev {
   margin-right: -8px !important;
+}
+
+.calendar-col .calendar-header #cal-special-dates-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 0;
+  border: none;
+  background: #fff;
+  border-radius: 6px;
+}
+.calendar-col .calendar-header #cal-special-dates-btn:hover {
+  background: #b3e5fc;
+  border-color: var(--primary);
+}
+.calendar-col .calendar-header #cal-special-dates-btn:hover::before {
+  opacity: 1;
 }
 
 .nav-btn {
@@ -233,19 +253,28 @@ header {
 .nav-btn-year {
   padding: 2px 4px;
   font-size: inherit;
-  font-weight: 800;
+  font-weight: var(--title-font-weight);
 }
 
 .nav-btn-today {
   flex-shrink: 0;
   color: #4b5563;
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
+}
+
+.nav-btn-icon {
+  padding: 4px;
+  line-height: 0;
+}
+.nav-btn-icon .icon-gear {
+  display: block;
+  color: inherit;
 }
 
 .cal-month-year {
   flex: 1;
   min-width: 0;
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   text-align: center;
 }
 
@@ -267,7 +296,7 @@ header {
 .cal-day-head {
   text-align: center;
   padding: 6px 0;
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   color: var(--text-muted);
 }
 
@@ -289,6 +318,33 @@ header {
   border-radius: 6px;
   cursor: pointer;
   border: 1px solid rgba(0,0,0,0.06);
+}
+
+.cal-day-inner {
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  align-items: center;
+  justify-items: center;
+  width: 100%;
+  min-height: 100%;
+  gap: 0;
+}
+.cal-day-above,
+.cal-day-below {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+.cal-day-above {
+  padding-top: 4px;
+}
+.cal-day-num-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cal-day.other-month {
@@ -366,12 +422,24 @@ header {
   white-space: nowrap;
   -webkit-font-smoothing: antialiased;
 }
+.cal-day .cal-special-date-name {
+  display: block;
+  font-size: 9px;
+  line-height: 1.1;
+  margin-bottom: 1px;
+  font-weight: 400;
+  color: #1565c0;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .cal-day.today {
   border: 2px solid var(--primary);
   background: #fff;
   color: inherit;
-  font-weight: 700;
+  font-weight: 400;
 }
 .cal-day.today.cal-sun .cal-num,
 .cal-day.today.cal-sun .cal-holiday-name { color: #b71c1c !important; }
@@ -426,7 +494,7 @@ header {
   border: 2px solid var(--primary);
   background: #fff;
   color: inherit;
-  font-weight: 700;
+  font-weight: 400;
 }
 .cal-day.selected.today.cal-sun .cal-num,
 .cal-day.selected.today.cal-sun .cal-holiday-name { color: #b71c1c !important; }
@@ -477,14 +545,27 @@ header {
   border-radius: 6px;
   background: var(--panel, #fff);
 }
+.calendar-memo-wrap .calendar-memo-contenteditable {
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: var(--font-family);
+  line-height: 1.5;
+  overflow-y: auto;
+  outline: none;
+}
+.calendar-memo-wrap .calendar-memo-contenteditable:empty::before {
+  content: attr(data-placeholder);
+  color: #b0b5bc;
+}
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-container {
   border: none;
-  font-size: var(--font-size);
+  font-size: 14px;
   font-family: var(--font-family);
 }
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor {
   min-height: 80px;
   padding: 8px 10px;
+  font-size: 14px;
 }
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor.ql-blank::before {
   color: #b0b5bc;
@@ -744,7 +825,7 @@ header {
 
 .calendar-category-title {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--text);
   margin: 0;
 }
@@ -799,7 +880,7 @@ header {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 80px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .btn-calendar-category-edit:hover {
@@ -850,7 +931,7 @@ header {
   border: none;
   box-shadow: none;
   color: var(--text);
-  font-weight: 800;
+  font-weight: var(--title-font-weight);
 }
 .calendar-full-header-inline .nav-btn:hover {
   background: #b3e5fc;
@@ -872,6 +953,7 @@ header {
   color: var(--text);
   cursor: pointer;
   font-family: inherit;
+  font-weight: var(--title-font-weight);
 }
 .calendar-full-header-inline .nav-btn-today:hover {
   background: #b3e5fc;
@@ -880,7 +962,7 @@ header {
 .calendar-full-header-inline .cal-month-year {
   font-size: calc(var(--font-size) + 1pt);
   line-height: 1.25;
-  font-weight: 800;
+  font-weight: var(--title-font-weight);
   color: #000;
   min-width: 90px;
   text-align: center;
@@ -892,7 +974,7 @@ header {
   justify-content: center;
   align-items: center;
   text-align: center;
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   font-size: calc(var(--font-size) + 1pt);
   gap: 0.75em;
   line-height: 1;
@@ -914,7 +996,7 @@ header {
   flex-shrink: 0;
   padding: 2px 10px;
   font-size: calc(var(--font-size) + 1pt);
-  font-weight: 400;
+  font-weight: var(--title-font-weight);
   border: none;
   background: transparent;
   border-radius: 6px;
@@ -925,6 +1007,15 @@ header {
   justify-content: center;
   line-height: 1;
   transition: background 0.15s, color 0.15s;
+  outline: none;
+  box-shadow: none;
+}
+.view-toggle-btn:focus,
+.view-toggle-btn:focus-visible,
+.view-toggle-btn:active {
+  outline: none;
+  box-shadow: none;
+  border: none;
 }
 .view-toggle-btn:hover {
   background: #b3e5fc;
@@ -941,14 +1032,20 @@ header {
 }
 
 .view-toggle-arrow {
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
+  color: #000000;
 }
 
-.panel-title.panel-title-todo .view-toggle-btn {
-  color: #000000;
+.panel-title.panel-title-todo .view-toggle-btn,
+.panel-title.panel-title-todo .view-toggle-btn .view-toggle-arrow {
+  color: #000000 !important;
+}
+.panel-title.panel-title-todo .view-toggle-btn:hover,
+.panel-title.panel-title-todo .view-toggle-btn:hover .view-toggle-arrow {
+  color: var(--primary) !important;
 }
 .panel-title.panel-title-todo .todo-view-caption {
-  color: #000000;
+  color: var(--panel-title-color);
 }
 
 .calendar-full-wrap {
@@ -978,7 +1075,7 @@ header {
 .calendar-full-header .cal-month-year {
   font-size: var(--font-size);
   line-height: 1.25;
-  font-weight: 700;
+  font-weight: 400;
   min-width: 90px;
   text-align: center;
 }
@@ -1078,29 +1175,56 @@ header {
   padding: 0 2px 2px;
   min-height: 20px;
 }
+.cal-full-day-head-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+}
+.cal-full-day-head-labels {
+  text-align: center;
+  line-height: 1.2;
+}
+.cal-full-day-head-labels-above {
+  margin-bottom: 1px;
+}
+.cal-full-day-head-labels-below {
+  margin-top: 1px;
+}
+.cal-full-day-head-labels .cal-full-holiday-name,
+.cal-full-day-head-labels .cal-full-special-date-name {
+  display: block;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .cal-full-day.cal-sun .cal-full-num { color: #c62828 !important; }
 .cal-full-day.cal-sat .cal-full-num { color: #1565c0 !important; }
 .cal-full-day.other-month.cal-sun .cal-full-num { color: #e57373 !important; }
 .cal-full-day.other-month.cal-sat .cal-full-num { color: #1976d2 !important; }
 .cal-full-num {
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   font-size: var(--font-size);
   flex-shrink: 0;
 }
 .cal-full-day-head .cal-full-holiday-name {
-  flex: 1;
   text-align: center;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 400;
   color: #b71c1c;
-  padding: 0 4px;
-  letter-spacing: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: 0 2px;
   letter-spacing: 0.02em;
-  line-height: 1.2;
   -webkit-font-smoothing: antialiased;
+}
+.cal-full-day-head .cal-full-special-date-name {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 400;
+  color: #1565c0;
+  padding: 0 2px;
 }
 .cal-full-todos-wrap {
   flex: 1;
@@ -1191,8 +1315,8 @@ header {
 .cal-full-todo-icons .cal-full-todo-important.cal-full-todo-important-red { color: var(--danger, #c53030); }
 .cal-full-todo-icons .cal-full-todo-repeat.cal-full-todo-repeat-on { color: var(--info, #0d6efd); }
 .cal-full-day-todo.cal-full-todo-completed .cal-full-todo-title { text-decoration: line-through; opacity: 0.8; }
-.cal-full-day-todo.cal-full-todo-important-blue .cal-full-todo-title { color: var(--info, #0d6efd); font-weight: bold; }
-.cal-full-day-todo.cal-full-todo-important-red .cal-full-todo-title { color: var(--danger, #c53030); font-weight: bold; }
+.cal-full-day-todo.cal-full-todo-important-blue .cal-full-todo-title { color: var(--info, #0d6efd); font-weight: 400; }
+.cal-full-day-todo.cal-full-todo-important-red .cal-full-todo-title { color: var(--danger, #c53030); font-weight: 400; }
 .cal-full-todo-title {
   flex: 1;
   min-width: 0;
@@ -1200,6 +1324,7 @@ header {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-smoothing: antialiased;
 }
@@ -1214,6 +1339,7 @@ header {
   border-radius: 2px;
   font-size: 12px;
   line-height: 1;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   box-sizing: border-box;
   outline: none;
 }
@@ -1273,7 +1399,7 @@ header {
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .btn-add:hover {
@@ -1345,7 +1471,8 @@ header {
 .section-header-title {
   flex: 1;
   color: #000;
-  font-weight: 700;
+  font-weight: 400;
+  font-size: var(--font-size);
 }
 
 /* 할일보기 + 버튼: 메모열 #memo-add-next-to-reorder와 동일 스타일 */
@@ -1400,7 +1527,7 @@ header {
 }
 .section-completed .section-header-title {
   color: #000;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .todo-items {
@@ -1480,7 +1607,7 @@ header {
 
 .todo-repeat-toggle.is-active {
   color: #c53030;
-  font-weight: bold;
+  font-weight: 400;
 }
 
 .todo-complete-toggle {
@@ -1565,8 +1692,8 @@ header {
 }
 
 .todo-item-title-input {
-  font-weight: 900;
-  font-size: var(--font-size);
+  font-weight: var(--title-font-weight);
+  font-size: 13px;
   color: #1a1a1a;
   border: none;
   background: transparent;
@@ -1588,7 +1715,7 @@ header {
 
 .todo-item-desc-input {
   color: var(--text);
-  font-size: var(--font-size);
+  font-size: 13px;
   font-weight: 400;
   border: none;
   background: transparent;
@@ -1706,11 +1833,11 @@ header {
 }
 .todo-item.todo-item-important-blue .todo-item-title-input {
   color: var(--info, #0d6efd);
-  font-weight: bold;
+  font-weight: 700;
 }
 .todo-item.todo-item-important-red .todo-item-title-input {
   color: var(--danger, #c53030);
-  font-weight: bold;
+  font-weight: 700;
 }
 
 /* 메모 */
@@ -1870,7 +1997,7 @@ header {
   border-radius: 6px;
   font-family: var(--font-family);
   font-size: var(--font-size);
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   background: var(--bg);
   background: var(--panel);
   cursor: pointer;
@@ -2225,7 +2352,7 @@ header {
 
 .memo-all-category-name {
   font-size: 1em;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--text);
   margin-bottom: 2px;
 }
@@ -2410,14 +2537,14 @@ header {
 .memo-col .memo-item-row.memo-item-important-blue .memo-item-title,
 .memo-col:not(.memo-view-all) .memo-item-row.memo-item-important-blue .memo-item-title {
   color: var(--info, #0d6efd);
-  font-weight: bold;
+  font-weight: 400;
   opacity: 1;
 }
 .memo-item-row.memo-item-important-red .memo-item-title,
 .memo-col .memo-item-row.memo-item-important-red .memo-item-title,
 .memo-col:not(.memo-view-all) .memo-item-row.memo-item-important-red .memo-item-title {
   color: var(--danger, #c53030);
-  font-weight: bold;
+  font-weight: 400;
   opacity: 1;
 }
 
@@ -2454,8 +2581,8 @@ header {
   border: none;
   border-radius: 0;
   font-family: var(--font-family);
-  font-size: var(--font-size);
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: var(--title-font-weight);
   color: #1a1a1a;
   line-height: 1.38;
   box-sizing: border-box;
@@ -2474,7 +2601,7 @@ header {
   border: none;
   border-radius: 0;
   font-family: var(--font-family);
-  font-size: var(--font-size);
+  font-size: 13px;
   font-weight: 400;
   color: var(--text);
   line-height: 1.38;
@@ -2607,6 +2734,134 @@ header {
   max-width: 260px;
 }
 
+.special-dates-desc {
+  margin: 0 0 12px 0;
+  font-size: var(--font-size);
+  color: var(--text-muted);
+}
+.special-dates-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+#special-dates-modal .special-dates-add #special-date-label {
+  flex-basis: 100%;
+  width: 100%;
+  margin-bottom: 2px;
+}
+.special-dates-add select {
+  min-width: 90px;
+}
+.special-dates-add #special-date-category {
+  min-width: 100px;
+}
+.special-dates-add .special-dates-range-group {
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 4px;
+}
+.special-dates-add .special-dates-range-group input[type="date"] {
+  flex: none;
+}
+.special-dates-add input[type="date"],
+.special-dates-add input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: var(--font-size);
+}
+#special-dates-modal .special-dates-add input[type="date"],
+#special-dates-modal .special-dates-range-group input[type="date"] {
+  font-size: var(--font-size);
+  line-height: 1.4;
+  min-height: 1.5em;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background: transparent;
+}
+/* 날짜 입력: 달력 아이콘 크게, 주변 박스 테두리 없음 */
+#special-dates-modal .special-dates-add input[type="date"]::-webkit-calendar-picker-indicator,
+#special-dates-modal .special-dates-range-group input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6370' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  -webkit-appearance: none;
+  appearance: none;
+}
+#special-dates-modal .special-dates-add input[type="date"]::-moz-focus-inner,
+#special-dates-modal .special-dates-range-group input[type="date"]::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+.special-dates-list {
+  list-style: none;
+  margin: 0 0 12px 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.special-dates-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size);
+}
+.special-dates-item-category {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.special-dates-item-date {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.special-dates-item-label {
+  flex: 1;
+  min-width: 0;
+  color: #1565c0;
+  font-weight: 500;
+}
+.special-dates-item-repeat {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: #e8eaed;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.special-dates-item-del {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .memo-color-picker {
   display: flex;
   flex-wrap: wrap;
@@ -2641,7 +2896,7 @@ header {
   padding: 5px 10px;
   border-radius: 6px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
@@ -2649,7 +2904,7 @@ header {
 #memo-reorder-modal h3 {
   margin: 0 0 10px 0;
   font-size: var(--font-size);
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   color: var(--text);
 }
 .memo-reorder-footer {
@@ -2696,7 +2951,7 @@ header {
   border-radius: 4px;
   outline: none;
   color: var(--text);
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
 }
 .memo-reorder-name:focus {
   background: rgba(255,255,255,0.5);
@@ -2809,7 +3064,7 @@ header {
 
 .memo-reorder-deleted-title {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   color: #6b7280;
   margin-bottom: 8px;
 }
@@ -2883,7 +3138,7 @@ header {
 .modal-content h3 {
   margin: 0 0 16px 0;
   font-size: var(--font-size);
-  font-weight: 700;
+  font-weight: var(--title-font-weight);
   color: var(--text);
 }
 
@@ -2895,7 +3150,7 @@ header {
   display: block;
   margin-bottom: 4px;
   font-size: var(--font-size);
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .form-group input[type="text"],
@@ -2915,15 +3170,23 @@ header {
   margin-top: 16px;
 }
 
-/* 모달 버튼 통일: 취소=흰바탕 검정글씨, 그외=연한하늘색 바탕 검정글씨 */
+/* 모달 버튼 통일: 반복일정 모달과 동일한 작은 크기, 취소=흰바탕 검정글씨, 그외=연한하늘색 바탕 검정글씨 */
+.modal .btn-primary,
+.modal .btn-secondary,
+.modal .modal-actions button,
+.modal .btn-small {
+  padding: 4px 10px;
+  font-size: 11px;
+  min-height: 0;
+  line-height: 1.2;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
 .modal .btn-primary {
   background: #b3e5fc;
   color: #000;
   border: 1px solid #81d4fa;
-  padding: 10px 18px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-family: inherit;
 }
 .modal .btn-primary:hover {
   background: #81d4fa;
@@ -2933,10 +3196,6 @@ header {
   background: #fff;
   color: #000;
   border: 1px solid var(--border);
-  padding: 10px 18px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-family: inherit;
 }
 .modal .btn-secondary:hover {
   background: #f5f5f5;
