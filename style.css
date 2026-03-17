@@ -207,7 +207,7 @@ header {
   transition: background 0.15s, color 0.15s;
 }
 .calendar-col .calendar-header .nav-btn:hover {
-  background: #b3e5fc;
+  background: transparent;
   color: var(--primary);
   border-radius: 4px;
 }
@@ -974,7 +974,7 @@ header {
   transition: background 0.15s, color 0.15s;
 }
 .calendar-full-header-inline .nav-btn:hover {
-  background: #b3e5fc;
+  background: transparent;
   color: var(--primary);
 }
 .calendar-full-header-inline .nav-btn.nav-btn-today,
