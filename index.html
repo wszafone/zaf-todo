@@ -113,10 +113,11 @@
       <div class="panel-title">메  모</div>
       <div class="memo-tab-bar">
         <div class="memo-dropdown-wrap">
+          <button type="button" class="nav-btn nav-btn-today" id="memo-view-all-btn" title="전체 보기" aria-label="전체">전체</button>
           <select id="memo-category-select" class="memo-category-select" title="메모 분류 선택">
             <option value="">전체</option>
           </select>
-          <button type="button" class="btn-icon" id="memo-add-next-to-reorder" title="할일 추가">⊕</button>
+          <button type="button" class="btn-icon" id="memo-add-next-to-reorder" title="메모 한 줄 추가">⊕</button>
           <button type="button" class="btn-calendar-category-edit memo-category-edit-in-bar" id="memo-category-edit-btn" title="분류 구성" aria-label="분류 구성">분류 구성</button>
         </div>
       </div>
@@ -158,21 +159,35 @@
               <option value="daily">매일</option>
               <option value="weekly">매주</option>
               <option value="monthly">매월</option>
+              <option value="monthly_last">매월 말일</option>
               <option value="yearly">매년</option>
               <option value="range">기간 설정</option>
             </select>
           </div>
-          <button type="button" class="btn-primary btn-small" id="special-date-add-btn">추가</button>
         </div>
         <div class="form-group range-group special-dates-range-group" id="special-dates-range-group" hidden>
-          <label>반복 기간</label>
-          <input type="date" id="special-date-range-start"> ~ <input type="date" id="special-date-range-end">
+          <div class="range-period-row">
+            <label>반복 기간</label>
+            <span class="range-period-inputs"><input type="date" id="special-date-range-start"><span class="range-period-sep"> ~ </span><input type="date" id="special-date-range-end"></span>
+          </div>
+          <div class="range-days-wrap" style="margin-top:8px">
+            <span class="range-days-label">적용 요일</span>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-mon" checked> 월</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-tue" checked> 화</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-wed" checked> 수</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-thu" checked> 목</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-fri" checked> 금</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-sat" checked> 토</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-sun" checked> 일</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-holiday" checked> 공휴일</label>
+          </div>
         </div>
       </div>
-      <ul class="special-dates-list" id="special-dates-list"></ul>
-      <div class="modal-actions">
+      <div class="modal-actions" id="special-dates-modal-actions">
+        <button type="button" class="btn-primary btn-small" id="special-date-add-btn">추가</button>
         <button type="button" class="btn-secondary" id="special-dates-close">닫기</button>
       </div>
+      <ul class="special-dates-list" id="special-dates-list"></ul>
     </div>
   </div>
 
@@ -187,12 +202,26 @@
           <option value="daily">매일</option>
           <option value="weekly">매주</option>
           <option value="monthly">매월</option>
+          <option value="monthly_last">매월 말일</option>
           <option value="range">기간 설정</option>
         </select>
       </div>
       <div class="form-group range-group" id="todo-repeat-only-range-group" style="display:none">
-        <label>반복 기간</label>
-        <input type="date" id="todo-repeat-only-range-start"> ~ <input type="date" id="todo-repeat-only-range-end">
+        <div class="range-period-row">
+          <label>반복 기간</label>
+          <span class="range-period-inputs"><input type="date" id="todo-repeat-only-range-start"><span class="range-period-sep"> ~ </span><input type="date" id="todo-repeat-only-range-end"></span>
+        </div>
+        <div class="range-days-wrap" style="margin-top:8px">
+          <span class="range-days-label">적용 요일</span>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-mon" checked> 월</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-tue" checked> 화</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-wed" checked> 수</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-thu" checked> 목</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-fri" checked> 금</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-sat" checked> 토</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-sun" checked> 일</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-holiday" checked> 공휴일</label>
+        </div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-primary" id="todo-repeat-only-save">확인</button>
@@ -234,12 +263,26 @@
           <option value="daily">매일</option>
           <option value="weekly">매주</option>
           <option value="monthly">매월</option>
+          <option value="monthly_last">매월 말일</option>
           <option value="range">기간 설정</option>
         </select>
       </div>
       <div class="form-group range-group" id="todo-range-group" style="display:none">
-        <label>반복 기간</label>
-        <input type="date" id="todo-range-start"> ~ <input type="date" id="todo-range-end">
+        <div class="range-period-row">
+          <label>반복 기간</label>
+          <span class="range-period-inputs"><input type="date" id="todo-range-start"><span class="range-period-sep"> ~ </span><input type="date" id="todo-range-end"></span>
+        </div>
+        <div class="range-days-wrap" style="margin-top:8px">
+          <span class="range-days-label">적용 요일</span>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-mon" checked> 월</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-tue" checked> 화</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-wed" checked> 수</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-thu" checked> 목</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-fri" checked> 금</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-sat" checked> 토</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-sun" checked> 일</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-holiday" checked> 공휴일</label>
+        </div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-primary" id="todo-save">저장</button>
