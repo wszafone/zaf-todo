@@ -1727,6 +1727,7 @@ header {
   flex-direction: column;
   flex: 0 0 auto;
   padding: 0 8px 2px 8px;
+  margin-top: -8px;
 }
 .todo-section.section-completed {
   flex-shrink: 0;
@@ -2024,6 +2025,9 @@ header {
   background: transparent;
   padding: 0 4px;
   border-radius: 4px;
+  height: 22px;
+  line-height: 22px;
+  box-sizing: border-box;
 }
 
 .todo-item-title-input:focus {
@@ -2070,6 +2074,9 @@ header {
   padding: 0 4px;
   border-radius: 4px;
   margin-left: -20px;
+  height: 22px;
+  line-height: 22px;
+  box-sizing: border-box;
 }
 
 .todo-item-desc-input:focus {
