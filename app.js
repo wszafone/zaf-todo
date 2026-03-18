@@ -168,6 +168,15 @@
     if (start && date < start) return false;
     if (end && date > end) return false;
     if (!s.repeat || s.repeat === 'none') return s.dateKey === dkey;
+    if (s.repeat === 'range') {
+      var rd = s.rangeDays;
+      if (rd && (rd.mon || rd.tue || rd.wed || rd.thu || rd.fri || rd.sat || rd.sun || rd.holiday)) {
+        var day = date.getDay();
+        var isHoliday = !!getHolidayName(dkey);
+        return (day === 1 && (rd.mon !== false)) || (day === 2 && (rd.tue !== false)) || (day === 3 && (rd.wed !== false)) || (day === 4 && (rd.thu !== false)) || (day === 5 && (rd.fri !== false)) || (day === 6 && (rd.sat !== false)) || (day === 0 && (rd.sun !== false)) || (isHoliday && (rd.holiday !== false));
+      }
+      return true;
+    }
     if (s.isLunar) {
       var lunarD = solarToLunar(dkey);
       var lunarS = solarToLunar(s.dateKey);
@@ -176,14 +185,12 @@
       if (s.repeat === 'weekly') return date.getDay() === origin.getDay();
       if (s.repeat === 'monthly') return lunarD.day === lunarS.day;
       if (s.repeat === 'yearly') return lunarD.month === lunarS.month && lunarD.day === lunarS.day;
-      if (s.repeat === 'range') return true;
       return false;
     }
     if (s.repeat === 'daily') return true;
     if (s.repeat === 'weekly') return date.getDay() === origin.getDay();
     if (s.repeat === 'monthly') return date.getDate() === origin.getDate();
     if (s.repeat === 'yearly') return s.dateKey.slice(5, 10) === dkey.slice(5, 10);
-    if (s.repeat === 'range') return true;
     return false;
   }
   function getSpecialDateLabels(dkey) {
@@ -340,19 +347,35 @@
     setToStore(STORAGE_REPEATING, JSON.stringify(state.repeatingTodos));
   }
 
+  function parseLocalDate(dateStr) {
+    if (!dateStr || String(dateStr).length < 10) return null;
+    var s = String(dateStr).replace(/\./g, '-');
+    var parts = s.split('-').map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return null;
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
   function repeatingAppliesToDate(t, key) {
     if (t.repeat === 'none') return false;
     const [y, m, d] = key.split('-').map(Number);
     const date = new Date(y, m - 1, d);
-    const start = t.rangeStart ? new Date(t.rangeStart) : (t.originKey ? new Date(t.originKey) : null);
-    const end = t.rangeEnd ? new Date(t.rangeEnd) : null;
+    const start = parseLocalDate(t.rangeStart) || (t.originKey ? parseLocalDate(t.originKey) : null);
+    const end = parseLocalDate(t.rangeEnd);
     if (start && date < start) return false;
     if (end && date > end) return false;
     const origin = t.originKey ? new Date(t.originKey) : date;
     if (t.repeat === 'daily') return true;
     if (t.repeat === 'weekly') return date.getDay() === origin.getDay() && (!start || date >= start);
     if (t.repeat === 'monthly') return date.getDate() === origin.getDate();
-    if (t.repeat === 'range') return true;
+    if (t.repeat === 'range') {
+      const rd = t.rangeDays;
+      if (rd && (rd.mon || rd.tue || rd.wed || rd.thu || rd.fri || rd.sat || rd.sun || rd.holiday)) {
+        const day = date.getDay();
+        const isHoliday = !!getHolidayName(key);
+        var onHoliday = isHoliday && (rd.holiday !== false);
+        return (day === 1 && (rd.mon !== false)) || (day === 2 && (rd.tue !== false)) || (day === 3 && (rd.wed !== false)) || (day === 4 && (rd.thu !== false)) || (day === 5 && (rd.fri !== false)) || (day === 6 && (rd.sat !== false)) || (day === 0 && (rd.sun !== false)) || onHoliday;
+      }
+      return true;
+    }
     return true;
   }
 
@@ -590,6 +613,10 @@
       }
     }
     const id = 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const defaultRangeDays = { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true, holiday: true };
+    const rangeDays = payload.repeat === 'range' && payload.rangeDays
+      ? payload.rangeDays
+      : (payload.repeat === 'range' ? defaultRangeDays : undefined);
     const newTodo = {
       id,
       title: payload.title || '',
@@ -598,6 +625,7 @@
       repeat: payload.repeat || 'none',
       rangeStart: payload.rangeStart || '',
       rangeEnd: payload.rangeEnd || '',
+      rangeDays: rangeDays,
       important: (payload.important === 'blue' || payload.important === 'red') ? payload.important : false,
       completed: false,
       order: state.todos[key].length,
@@ -747,17 +775,17 @@
     function setCellContent(cell, num, dkey) {
       const holidayName = getHolidayName(dkey);
       const specialLabels = getSpecialDateLabels(dkey);
-      var above = '';
-      if (specialLabels.length) {
-        const escaped = specialLabels.map(function (l) { return (l || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }).join(', ');
-        above = '<span class="cal-special-date-name">' + escaped + '</span>';
-      }
+      const specialCount = Math.min(specialLabels.length, 3);
+      const repeatCount = holidayName ? 0 : state.repeatingTodos.filter(function (r) { return repeatingAppliesToDate(r, dkey) && !isDeletedTabId(r.memoTabId); }).length;
+      const repeatDotsCount = Math.min(repeatCount, 3);
+      var above = specialCount > 0 ? '<span class="cal-day-dots cal-day-dots-special" aria-hidden="true">' + '\u2022'.repeat(specialCount) + '</span>' : '';
       var below = '';
-      if (holidayName) below = '<span class="cal-holiday-name">' + holidayName + '</span>';
+      if (holidayName) below = '<span class="cal-holiday-name">' + (holidayName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')) + '</span>';
       if (state.calendarType === 'lunar') {
         var lunarStr = getLunarDisplayString(dkey);
         if (lunarStr) below = (below ? below + '<span class="cal-lunar-date">' + lunarStr + '</span>' : '<span class="cal-lunar-date">' + lunarStr + '</span>');
       }
+      if (repeatDotsCount > 0) below = below + (below ? ' ' : '') + '<span class="cal-day-dots cal-day-dots-repeat" aria-hidden="true">' + '\u2022'.repeat(repeatDotsCount) + '</span>';
       var html = '<div class="cal-day-inner"><div class="cal-day-above">' + above + '</div><div class="cal-day-num-wrap"><span class="cal-num">' + num + '</span></div><div class="cal-day-below">' + below + '</div></div>';
       cell.innerHTML = html;
     }
@@ -810,6 +838,7 @@
     const el = document.getElementById('selected-date');
     if (el) el.textContent = d ? dateKey(d) : '';
     renderTodos();
+    updateTodoViewCaption();
   }
 
   function renderCalendarFull() {
@@ -840,18 +869,18 @@
     function fullDayHeadHtml(num, dkey, addBtn) {
       const holidayName = getHolidayName(dkey);
       const specialLabels = getSpecialDateLabels(dkey);
-      var aboveHtml = '';
-      if (specialLabels.length) {
-        const escaped = specialLabels.map(function (l) { return (l || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }).join(', ');
-        aboveHtml = '<div class="cal-full-day-head-labels cal-full-day-head-labels-above"><span class="cal-full-special-date-name">' + escaped + '</span></div>';
+      var parts = [];
+      if (holidayName) parts.push('<span class="cal-full-holiday-name">' + (holidayName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')) + '</span>');
+      if (specialLabels.length > 0) {
+        var escapedSpecial = specialLabels.map(function (l) { return (l || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }).join(', ');
+        parts.push('<span class="cal-full-special-date-name">' + escapedSpecial + '</span>');
       }
-      var belowHtml = '';
-      if (holidayName) belowHtml = '<div class="cal-full-day-head-labels cal-full-day-head-labels-below"><span class="cal-full-holiday-name">' + holidayName + '</span></div>';
       if (state.calendarType === 'lunar') {
         var lunarStr = getLunarDisplayString(dkey);
-        if (lunarStr) belowHtml = belowHtml + '<div class="cal-full-day-head-labels cal-full-day-head-labels-below"><span class="cal-full-lunar-date">' + lunarStr + '</span></div>';
+        if (lunarStr) parts.push('<span class="cal-full-lunar-date">' + lunarStr + '</span>');
       }
-      let h = '<div class="cal-full-day-head"><div class="cal-full-day-head-center">' + aboveHtml + '<span class="cal-full-num">' + num + '</span>' + belowHtml + '</div>';
+      var belowHtml = parts.length > 0 ? '<div class="cal-full-day-head-labels cal-full-day-head-labels-below">' + parts.join(' / ') + '</div>' : '';
+      let h = '<div class="cal-full-day-head"><div class="cal-full-day-head-center"><span class="cal-full-num">' + num + '</span>' + belowHtml + '</div>';
       if (addBtn) h += '<button type="button" class="cal-full-add" data-date="' + dkey + '" aria-label="할일 추가">⊕</button>';
       h += '</div><div class="cal-full-todos-wrap"><ul class="cal-full-todos" data-date="' + dkey + '"' + (addBtn ? ' data-section="morning"' : '') + '></ul></div>';
       return h;
@@ -885,24 +914,22 @@
         cell.innerHTML = fullDayHeadHtml(nextMonth.getDate(), dkey, false);
       }
 
+      const ul = cell.querySelector('.cal-full-todos');
       const bySection = getTodosForDate(dkey);
       const sectionOrder = ['morning', 'lunch', 'afternoon', 'evening'];
-      const todosAll = sectionOrder.flatMap(s => {
-        const items = (bySection[s] || []).filter(t => !t.completed);
-        return items.slice().sort((a, b) => {
-          const ar = !!(a.repeat && a.repeat !== 'none');
-          const br = !!(b.repeat && b.repeat !== 'none');
-          return (br ? 1 : 0) - (ar ? 1 : 0);
-        });
+      const todosAll = sectionOrder.flatMap(s => (bySection[s] || []).filter(t => !t.completed));
+      const repeatingFirst = todosAll.slice().sort((a, b) => {
+        const ar = !!(a.repeat && a.repeat !== 'none');
+        const br = !!(b.repeat && b.repeat !== 'none');
+        return (br ? 1 : 0) - (ar ? 1 : 0);
       });
-      const ul = cell.querySelector('.cal-full-todos');
-      if (ul && todosAll.length > 0) {
-        todosAll.forEach((t, idx) => {
+      if (ul && repeatingFirst.length > 0) {
+        repeatingFirst.forEach((t, idx) => {
           const section = t.section || 'morning';
           const colorIdx = getTodoColorIndex(t, section);
           const completed = !!t.completed;
           const li = document.createElement('li');
-          li.className = 'cal-full-day-todo todo-item cal-full-todo-' + section + ' todo-bg-' + colorIdx + (completed ? ' cal-full-todo-completed' : '') + (t.important === 'blue' ? ' cal-full-todo-important-blue' : t.important === 'red' ? ' cal-full-todo-important-red' : '');
+          li.className = 'cal-full-day-todo todo-item cal-full-todo-' + section + ' todo-bg-' + colorIdx + (completed ? ' cal-full-todo-completed' : '') + (t.important === 'blue' ? ' cal-full-todo-important-blue' : t.important === 'red' ? ' cal-full-todo-important-red' : '') + (t.repeat && t.repeat !== 'none' ? ' cal-full-todo-repeat-on' : '');
           li.draggable = true;
           li.dataset.id = t.id;
           li.dataset.dateKey = dkey;
@@ -1321,6 +1348,8 @@ delBtn.title = '삭제';
         document.getElementById('todo-repeat').value = t.repeat || 'none';
         document.getElementById('todo-range-start').value = t.rangeStart || '';
         document.getElementById('todo-range-end').value = t.rangeEnd || '';
+        const rd = t.rangeDays || { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true, holiday: true };
+        ['mon','tue','wed','thu','fri','sat','sun','holiday'].forEach(function (d) { var el = document.getElementById('todo-range-' + (d === 'holiday' ? 'holiday' : d)); if (el) el.checked = !!rd[d === 'holiday' ? 'holiday' : d]; });
         if (categorySelect) categorySelect.value = t.memoTabId || getPersonalTabId() || '';
         if (t.repeat === 'range') document.getElementById('todo-range-group').style.display = 'block';
       } else {
@@ -1334,6 +1363,7 @@ delBtn.title = '삭제';
       document.getElementById('todo-repeat').value = 'none';
       document.getElementById('todo-range-start').value = '';
       document.getElementById('todo-range-end').value = '';
+      ['mon','tue','wed','thu','fri','sat','sun','holiday'].forEach(function (d) { var el = document.getElementById('todo-range-' + (d === 'holiday' ? 'holiday' : d)); if (el) el.checked = true; });
       if (categorySelect) categorySelect.value = getPersonalTabId() || (state.memoTabs[0] ? state.memoTabs[0].id : '');
     }
     modal.classList.add('show');
@@ -1367,6 +1397,16 @@ delBtn.title = '삭제';
       return;
     }
 
+    const rangeDays = repeat === 'range' ? {
+      mon: !!(document.getElementById('todo-range-mon') && document.getElementById('todo-range-mon').checked),
+      tue: !!(document.getElementById('todo-range-tue') && document.getElementById('todo-range-tue').checked),
+      wed: !!(document.getElementById('todo-range-wed') && document.getElementById('todo-range-wed').checked),
+      thu: !!(document.getElementById('todo-range-thu') && document.getElementById('todo-range-thu').checked),
+      fri: !!(document.getElementById('todo-range-fri') && document.getElementById('todo-range-fri').checked),
+      sat: !!(document.getElementById('todo-range-sat') && document.getElementById('todo-range-sat').checked),
+      sun: !!(document.getElementById('todo-range-sun') && document.getElementById('todo-range-sun').checked),
+      holiday: !!(document.getElementById('todo-range-holiday') && document.getElementById('todo-range-holiday').checked)
+    } : undefined;
     const payload = {
       title,
       desc: document.getElementById('todo-desc').value.trim(),
@@ -1374,6 +1414,7 @@ delBtn.title = '삭제';
       repeat: repeat === 'range' ? 'range' : repeat,
       rangeStart: repeat === 'range' ? rangeStart : '',
       rangeEnd: repeat === 'range' ? rangeEnd : '',
+      rangeDays,
       memoTabId: memoTabId || getPersonalTabId() || undefined
     };
     if (state.editingTodoId) payload.id = state.editingTodoId;
@@ -1396,11 +1437,14 @@ delBtn.title = '삭제';
       document.getElementById('todo-repeat-only').value = t.repeat || 'none';
       document.getElementById('todo-repeat-only-range-start').value = t.rangeStart || '';
       document.getElementById('todo-repeat-only-range-end').value = t.rangeEnd || '';
+      const rd = t.rangeDays || { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true, holiday: true };
+      ['mon','tue','wed','thu','fri','sat','sun','holiday'].forEach(function (d) { var el = document.getElementById('todo-repeat-only-range-' + (d === 'holiday' ? 'holiday' : d)); if (el) el.checked = !!rd[d === 'holiday' ? 'holiday' : d]; });
       if (t.repeat === 'range') document.getElementById('todo-repeat-only-range-group').style.display = 'block';
     } else {
       document.getElementById('todo-repeat-only').value = 'none';
       document.getElementById('todo-repeat-only-range-start').value = '';
       document.getElementById('todo-repeat-only-range-end').value = '';
+      ['mon','tue','wed','thu','fri','sat','sun','holiday'].forEach(function (d) { var el = document.getElementById('todo-repeat-only-range-' + (d === 'holiday' ? 'holiday' : d)); if (el) el.checked = true; });
     }
     document.getElementById('todo-repeat-modal').classList.add('show');
   }
@@ -1420,11 +1464,22 @@ delBtn.title = '삭제';
     const repeat = document.getElementById('todo-repeat-only').value;
     const rangeStart = document.getElementById('todo-repeat-only-range-start').value;
     const rangeEnd = document.getElementById('todo-repeat-only-range-end').value;
+    const rangeDays = repeat === 'range' ? {
+      mon: !!(document.getElementById('todo-repeat-only-range-mon') && document.getElementById('todo-repeat-only-range-mon').checked),
+      tue: !!(document.getElementById('todo-repeat-only-range-tue') && document.getElementById('todo-repeat-only-range-tue').checked),
+      wed: !!(document.getElementById('todo-repeat-only-range-wed') && document.getElementById('todo-repeat-only-range-wed').checked),
+      thu: !!(document.getElementById('todo-repeat-only-range-thu') && document.getElementById('todo-repeat-only-range-thu').checked),
+      fri: !!(document.getElementById('todo-repeat-only-range-fri') && document.getElementById('todo-repeat-only-range-fri').checked),
+      sat: !!(document.getElementById('todo-repeat-only-range-sat') && document.getElementById('todo-repeat-only-range-sat').checked),
+      sun: !!(document.getElementById('todo-repeat-only-range-sun') && document.getElementById('todo-repeat-only-range-sun').checked),
+      holiday: !!(document.getElementById('todo-repeat-only-range-holiday') && document.getElementById('todo-repeat-only-range-holiday').checked)
+    } : undefined;
     addOrUpdateTodo({
       id: editingTodoIdForRepeat,
       repeat: repeat === 'range' ? 'range' : repeat,
       rangeStart: repeat === 'range' ? rangeStart : '',
-      rangeEnd: repeat === 'range' ? rangeEnd : ''
+      rangeEnd: repeat === 'range' ? rangeEnd : '',
+      rangeDays
     });
     closeRepeatOnlyModal();
     if (state.viewMode === 'calendarFull') renderCalendarFull();
@@ -1571,6 +1626,8 @@ delBtn.title = '삭제';
       select.appendChild(opt);
     });
     select.value = currentValue;
+    const viewAllBtn = document.getElementById('memo-view-all-btn');
+    if (viewAllBtn) viewAllBtn.classList.toggle('active', !!state.viewAllMemos);
   }
 
   function selectMemoTab(tabId) {
@@ -1583,6 +1640,8 @@ delBtn.title = '삭제';
       state.activeMemoTabId = tabId;
       document.querySelector('.memo-col').classList.remove('memo-view-all');
     }
+    const viewAllBtn = document.getElementById('memo-view-all-btn');
+    if (viewAllBtn) viewAllBtn.classList.toggle('active', !!state.viewAllMemos);
     renderMemoTabs();
     showMemoContent();
   }
@@ -2391,6 +2450,13 @@ delBtn.title = '삭제';
     });
   }
 
+  const memoViewAllBtn = document.getElementById('memo-view-all-btn');
+  if (memoViewAllBtn) {
+    memoViewAllBtn.addEventListener('click', () => {
+      selectMemoTab('');
+    });
+  }
+
   const memoCategorySelect = document.getElementById('memo-category-select');
   if (memoCategorySelect) {
     memoCategorySelect.addEventListener('change', function () {
@@ -2406,12 +2472,19 @@ delBtn.title = '삭제';
   const memoAddNextToReorder = document.getElementById('memo-add-next-to-reorder');
   if (memoAddNextToReorder) {
     memoAddNextToReorder.addEventListener('click', () => {
-      if (!state.selectedDate) {
-        alert('달력에서 날짜를 먼저 선택하세요.');
-        return;
+      const select = document.getElementById('memo-category-select');
+      const tabId = (select && select.value) || state.activeMemoTabId || (state.memoTabs[0] && state.memoTabs[0].id);
+      if (tabId) {
+        if (state.viewAllMemos) {
+          state.viewAllMemos = false;
+          state.activeMemoTabId = tabId;
+          if (select) select.value = tabId;
+          showMemoContent();
+        }
+        addMemoItem(tabId);
+      } else {
+        alert('먼저 분류를 추가하거나 선택하세요.');
       }
-      setViewMode('todo');
-      openTodoModal(null, 'morning');
     });
   }
 
@@ -2582,28 +2655,68 @@ delBtn.title = '삭제';
     }
     var dateInput = document.getElementById('special-date-input');
     var dateDisplay = document.getElementById('special-date-selected-display');
+    if (dateInput && (!dateInput.value || !String(dateInput.value).trim()) && state.selectedDate) {
+      dateInput.value = dateKey(state.selectedDate);
+    }
     if (dateDisplay) dateDisplay.textContent = (dateInput && dateInput.value) ? dateInput.value : '';
     renderSpecialDatesList();
     modal.classList.add('show');
+    var content = document.getElementById('special-dates-modal-content');
+    if (content) {
+      content.style.setProperty('width', '380px', 'important');
+      content.style.setProperty('max-width', '90vw', 'important');
+    }
   }
   function closeSpecialDatesModal() {
     const modal = document.getElementById('special-dates-modal');
     if (modal) modal.classList.remove('show');
   }
+  var REPEAT_ORDER = { none: 0, daily: 1, weekly: 2, monthly: 3, yearly: 4, range: 5 };
+  function formatRangeDays(rd) {
+    if (!rd || (!rd.mon && !rd.tue && !rd.wed && !rd.thu && !rd.fri && !rd.sat && !rd.sun && !rd.holiday)) return '전체';
+    var labels = [];
+    if (rd.mon) labels.push('월');
+    if (rd.tue) labels.push('화');
+    if (rd.wed) labels.push('수');
+    if (rd.thu) labels.push('목');
+    if (rd.fri) labels.push('금');
+    if (rd.sat) labels.push('토');
+    if (rd.sun) labels.push('일');
+    if (rd.holiday) labels.push('공휴일');
+    return labels.join('·');
+  }
   function renderSpecialDatesList() {
     const listEl = document.getElementById('special-dates-list');
     if (!listEl) return;
     listEl.innerHTML = '';
-    (state.specialDates || []).forEach(function (s) {
+    var list = (state.specialDates || []).slice();
+    list.sort(function (a, b) {
+      var ra = (a.repeat && a.repeat !== 'none') ? a.repeat : 'none';
+      var rb = (b.repeat && b.repeat !== 'none') ? b.repeat : 'none';
+      return ((REPEAT_ORDER[ra] ?? 9) - (REPEAT_ORDER[rb] ?? 9));
+    });
+    list.forEach(function (s) {
       const li = document.createElement('li');
       li.className = 'special-dates-item';
       var tab = state.memoTabs && s.memoTabId ? state.memoTabs.find(function (t) { return t.id === s.memoTabId; }) : null;
       var categoryName = (tab && tab.name) ? tab.name : '(분류 없음)';
-      var repeatLabels = { daily: '매일', weekly: '매주', monthly: '매월', yearly: '매년', range: '기간' };
-      var repeatText = (s.repeat && s.repeat !== 'none' && repeatLabels[s.repeat]) ? '<span class="special-dates-item-repeat">' + repeatLabels[s.repeat] + '</span>' : '';
-      if (s.repeat === 'range' && (s.rangeStart || s.rangeEnd)) repeatText = '<span class="special-dates-item-repeat">' + (s.rangeStart || '') + ' ~ ' + (s.rangeEnd || '') + '</span>';
+      var repeatType = (s.repeat && s.repeat !== 'none') ? s.repeat : 'none';
+      var repeatDisplay = { none: '없음', daily: '매일', weekly: '매주', monthly: '매월', yearly: '매년', range: '기간' };
+      var repeatLabel = (repeatDisplay[repeatType] || repeatType);
+      var sid = (s.id || '').replace(/"/g, '&quot;');
+      var repeatText = '<span class="special-dates-item-repeat" data-id="' + sid + '" data-repeat="' + repeatType + '" title="클릭하여 반복주기 수정">' + (repeatLabel.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</span>';
       var lunarBadge = s.isLunar ? ' <span class="special-dates-item-lunar">음력</span>' : '';
-      li.innerHTML = '<span class="special-dates-item-category">' + (categoryName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span> <span class="special-dates-item-label">' + (s.label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span> <span class="special-dates-item-date">' + (s.dateKey || '') + '</span> ' + repeatText + lunarBadge + '<button type="button" class="btn-icon special-dates-item-del" data-id="' + (s.id || '') + '" aria-label="삭제">×</button>';
+      var row1 = '<span class="special-dates-item-category" data-id="' + sid + '" title="클릭하여 분류 수정">' + (categoryName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span> <span class="special-dates-item-label" data-id="' + sid + '" title="클릭하여 수정">' + (s.label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span> <span class="special-dates-item-date" data-id="' + sid + '" title="클릭하여 등록일 수정">' + (s.dateKey || '') + '</span> ';
+      if (repeatType === 'range') {
+        li.classList.add('special-dates-item--range');
+        var rangeDatesText = (s.rangeStart || '') + ' ~ ' + (s.rangeEnd || '');
+        var rangeDaysLabel = formatRangeDays(s.rangeDays);
+        var titleRow = row1 + repeatText + lunarBadge + '<button type="button" class="btn-icon special-dates-item-del" data-id="' + (s.id || '').replace(/"/g, '&quot;') + '" aria-label="삭제">×</button>';
+        var rangeLine = '<span class="special-dates-item-range-days" data-id="' + (s.id || '').replace(/"/g, '&quot;') + '" title="클릭하여 반복요일 수정">[' + (rangeDaysLabel.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')) + ']</span> <span class="special-dates-item-range-dates" data-id="' + (s.id || '').replace(/"/g, '&quot;') + '" title="클릭하여 반복날짜 수정">' + (rangeDatesText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</span>';
+        li.innerHTML = '<div class="special-dates-item-title-row">' + titleRow + '</div><div class="special-dates-item-range-line">' + rangeLine + '</div>';
+      } else {
+        li.innerHTML = row1 + repeatText + lunarBadge + '<button type="button" class="btn-icon special-dates-item-del" data-id="' + sid + '" aria-label="삭제">×</button>';
+      }
       listEl.appendChild(li);
     });
   }
@@ -2613,6 +2726,25 @@ delBtn.title = '삭제';
   var calFullTypeToggle = document.getElementById('cal-full-type-toggle');
   if (calFullTypeToggle) calFullTypeToggle.addEventListener('click', toggleCalendarType);
   document.getElementById('special-dates-close').addEventListener('click', closeSpecialDatesModal);
+
+  document.addEventListener('click', function (e) {
+    if (!e.target || !e.target.classList || !e.target.classList.contains('modal') || !e.target.classList.contains('show')) return;
+    var id = e.target.id;
+    if (id === 'todo-modal') closeTodoModal();
+    else if (id === 'todo-repeat-modal') closeRepeatOnlyModal();
+    else if (id === 'special-dates-modal') closeSpecialDatesModal();
+    else if (id === 'memo-reorder-modal') {
+      e.target.classList.remove('show');
+      state.fromReorderModal = false;
+      renderMemoTabs();
+      showMemoContent();
+      renderCategoryManageList();
+    } else if (id === 'memo-color-modal') closeMemoColorModal();
+    else if (id === 'memo-tab-modal') { closeMemoTabModal(); state.fromReorderModal = false; }
+    else if (id === 'repeat-delete-modal') closeRepeatDeleteModal();
+    else e.target.classList.remove('show');
+  });
+
   function updateSpecialDatesRangeVisibility() {
     var repeatEl = document.getElementById('special-date-repeat');
     var rangeGroup = document.getElementById('special-dates-range-group');
@@ -2645,39 +2777,303 @@ delBtn.title = '삭제';
       const repeatEl = document.getElementById('special-date-repeat');
       const rangeStartEl = document.getElementById('special-date-range-start');
       const rangeEndEl = document.getElementById('special-date-range-end');
-      const dateVal = dateInput && dateInput.value ? dateInput.value.trim() : '';
+      const dateVal = dateInput && dateInput.value ? dateInput.value.trim() : (state.selectedDate ? dateKey(state.selectedDate) : '');
       const labelVal = labelInput && labelInput.value ? labelInput.value.trim() : '';
       const memoTabId = (categoryEl && categoryEl.value) ? categoryEl.value : (getPersonalTabId() || (state.memoTabs && state.memoTabs[0] ? state.memoTabs[0].id : ''));
       const repeatVal = (repeatEl && repeatEl.value) ? repeatEl.value : 'none';
-      const rangeStartVal = (repeatVal === 'range' && rangeStartEl && rangeStartEl.value) ? rangeStartEl.value.trim() : '';
-      const rangeEndVal = (repeatVal === 'range' && rangeEndEl && rangeEndEl.value) ? rangeEndEl.value.trim() : '';
+      let rangeStartVal = (repeatVal === 'range' && rangeStartEl && rangeStartEl.value) ? rangeStartEl.value.trim() : '';
+      let rangeEndVal = (repeatVal === 'range' && rangeEndEl && rangeEndEl.value) ? rangeEndEl.value.trim() : '';
       if (!labelVal) { alert('명칭을 입력해 주세요.'); if (labelInput) labelInput.focus(); return; }
       if (!dateVal || !/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) { alert('시작일을 선택해 주세요.'); if (dateInput) dateInput.focus(); return; }
-      if (repeatVal === 'range' && (!rangeStartVal || !rangeEndVal)) { alert('기간 설정을 선택한 경우 반복 기간(시작일~종료일)을 입력해 주세요.'); return; }
+      if (repeatVal === 'range') {
+        if (!rangeStartVal) rangeStartVal = dateVal;
+        if (!rangeEndVal) rangeEndVal = dateVal;
+      }
+      var rangeDaysVal = undefined;
+      if (repeatVal === 'range') {
+        rangeDaysVal = {
+          mon: !!(document.getElementById('special-date-range-mon') && document.getElementById('special-date-range-mon').checked),
+          tue: !!(document.getElementById('special-date-range-tue') && document.getElementById('special-date-range-tue').checked),
+          wed: !!(document.getElementById('special-date-range-wed') && document.getElementById('special-date-range-wed').checked),
+          thu: !!(document.getElementById('special-date-range-thu') && document.getElementById('special-date-range-thu').checked),
+          fri: !!(document.getElementById('special-date-range-fri') && document.getElementById('special-date-range-fri').checked),
+          sat: !!(document.getElementById('special-date-range-sat') && document.getElementById('special-date-range-sat').checked),
+          sun: !!(document.getElementById('special-date-range-sun') && document.getElementById('special-date-range-sun').checked),
+          holiday: !!(document.getElementById('special-date-range-holiday') && document.getElementById('special-date-range-holiday').checked)
+        };
+      }
       const id = 'sd_' + Date.now() + '_' + Math.random().toString(36).slice(2);
       state.specialDates = state.specialDates || [];
       var isLunar = false;
-      state.specialDates.push({ id: id, dateKey: dateVal, label: labelVal, memoTabId: memoTabId || undefined, repeat: repeatVal, rangeStart: rangeStartVal, rangeEnd: rangeEndVal, isLunar: isLunar });
+      state.specialDates.push({ id: id, dateKey: dateVal, label: labelVal, memoTabId: memoTabId || undefined, repeat: repeatVal, rangeStart: rangeStartVal, rangeEnd: rangeEndVal, rangeDays: rangeDaysVal, isLunar: isLunar });
       saveSpecialDates();
       renderCalendar();
       if (state.viewMode === 'calendarFull') renderCalendarFull();
       renderSpecialDatesList();
       labelInput.value = '';
-      dateInput.value = '';
       var dateDisplay = document.getElementById('special-date-selected-display');
-      if (dateDisplay) dateDisplay.textContent = '';
+      if (dateDisplay) dateDisplay.textContent = dateVal || '';
       if (rangeStartEl) rangeStartEl.value = '';
       if (rangeEndEl) rangeEndEl.value = '';
     });
   }
+  function closeSpecialDatesRangePopover() {
+    var pop = document.getElementById('special-dates-range-edit-popover');
+    if (pop && pop.parentNode) pop.parentNode.removeChild(pop);
+    document.removeEventListener('click', specialDatesRangePopoverOutside);
+  }
+  function specialDatesRangePopoverOutside(e) {
+    var pop = document.getElementById('special-dates-range-edit-popover');
+    if (pop && !pop.contains(e.target) && !e.target.closest('.special-dates-item-range-days') && !e.target.closest('.special-dates-item-range-dates')) {
+      closeSpecialDatesRangePopover();
+    }
+  }
+  function openRangeDaysEditor(specialId, anchor) {
+    closeSpecialDatesRangePopover();
+    var item = (state.specialDates || []).find(function (s) { return s.id === specialId; });
+    if (!item || item.repeat !== 'range') return;
+    var rd = item.rangeDays || { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true, holiday: true };
+    var days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun', 'holiday'];
+    var dayLabels = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일', holiday: '공휴일' };
+    var wrap = document.createElement('div');
+    wrap.id = 'special-dates-range-edit-popover';
+    wrap.className = 'special-dates-range-edit-popover';
+    var html = '<div class="special-dates-range-edit-popover-inner"><div class="range-days-wrap" style="margin:0">';
+    days.forEach(function (d) {
+      var checked = rd[d] !== false ? ' checked' : '';
+      var id = 'special-dates-range-edit-' + d;
+      html += '<label class="range-day-cb"><input type="checkbox" id="' + id + '"' + checked + '> ' + dayLabels[d] + '</label>';
+    });
+    html += '</div><button type="button" class="btn-primary btn-small special-dates-range-edit-apply">적용</button></div>';
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap);
+    var rect = anchor.getBoundingClientRect();
+    var popWidth = wrap.offsetWidth || 200;
+    wrap.style.left = Math.min(rect.left, window.innerWidth - popWidth - 8) + 'px';
+    wrap.style.top = (rect.bottom + 4) + 'px';
+    wrap.querySelector('.special-dates-range-edit-apply').addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var newRd = {};
+      days.forEach(function (d) {
+        var el = document.getElementById('special-dates-range-edit-' + d);
+        newRd[d] = !!(el && el.checked);
+      });
+      item.rangeDays = newRd;
+      saveSpecialDates();
+      renderCalendar();
+      if (state.viewMode === 'calendarFull') renderCalendarFull();
+      renderSpecialDatesList();
+      closeSpecialDatesRangePopover();
+    });
+    setTimeout(function () { document.addEventListener('click', specialDatesRangePopoverOutside); }, 0);
+  }
+  function openRangeDatesEditor(specialId, anchor) {
+    closeSpecialDatesRangePopover();
+    var item = (state.specialDates || []).find(function (s) { return s.id === specialId; });
+    if (!item || item.repeat !== 'range') return;
+    var wrap = document.createElement('div');
+    wrap.id = 'special-dates-range-edit-popover';
+    wrap.className = 'special-dates-range-edit-popover';
+    var startVal = item.rangeStart || '';
+    var endVal = item.rangeEnd || '';
+    wrap.innerHTML = '<div class="special-dates-range-edit-popover-inner"><div class="range-period-row" style="margin:0"><label>반복 기간</label><span class="range-period-inputs"><input type="date" id="special-dates-range-edit-start" value="' + (startVal.replace(/"/g, '&quot;')) + '"><span class="range-period-sep"> ~ </span><input type="date" id="special-dates-range-edit-end" value="' + (endVal.replace(/"/g, '&quot;')) + '"></span></div><button type="button" class="btn-primary btn-small special-dates-range-edit-apply">적용</button></div>';
+    document.body.appendChild(wrap);
+    var rect = anchor.getBoundingClientRect();
+    var popWidth = wrap.offsetWidth || 260;
+    wrap.style.left = Math.min(rect.left, window.innerWidth - popWidth - 8) + 'px';
+    wrap.style.top = (rect.bottom + 4) + 'px';
+    wrap.querySelector('.special-dates-range-edit-apply').addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var startEl = document.getElementById('special-dates-range-edit-start');
+      var endEl = document.getElementById('special-dates-range-edit-end');
+      var newStart = (startEl && startEl.value) ? startEl.value.trim() : '';
+      var newEnd = (endEl && endEl.value) ? endEl.value.trim() : '';
+      item.rangeStart = newStart;
+      item.rangeEnd = newEnd;
+      saveSpecialDates();
+      renderCalendar();
+      if (state.viewMode === 'calendarFull') renderCalendarFull();
+      renderSpecialDatesList();
+      closeSpecialDatesRangePopover();
+    });
+    setTimeout(function () { document.addEventListener('click', specialDatesRangePopoverOutside); }, 0);
+  }
+  function openSpecialDateFieldEditor(specialId, anchor, type) {
+    closeSpecialDatesRangePopover();
+    var item = (state.specialDates || []).find(function (s) { return s.id === specialId; });
+    if (!item) return;
+    var wrap = document.createElement('div');
+    wrap.id = 'special-dates-range-edit-popover';
+    wrap.className = 'special-dates-range-edit-popover';
+    if (type === 'date') {
+      var val = (item.dateKey || '').replace(/\./g, '-');
+      wrap.innerHTML = '<div class="special-dates-range-edit-popover-inner"><div class="range-period-row" style="margin:0"><label>등록일</label><input type="date" id="special-dates-edit-date" value="' + (val.replace(/"/g, '&quot;')) + '"></div><button type="button" class="btn-primary btn-small special-dates-range-edit-apply">적용</button></div>';
+      document.body.appendChild(wrap);
+      var rect = anchor.getBoundingClientRect();
+      wrap.style.left = Math.min(rect.left, window.innerWidth - (wrap.offsetWidth || 200) - 8) + 'px';
+      wrap.style.top = (rect.bottom + 4) + 'px';
+      wrap.querySelector('.special-dates-range-edit-apply').addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var el = document.getElementById('special-dates-edit-date');
+        var newVal = (el && el.value) ? el.value.trim() : '';
+        if (newVal && /^\d{4}-\d{2}-\d{2}$/.test(newVal)) {
+          item.dateKey = newVal;
+          if (item.repeat === 'range' && (!item.rangeStart || item.rangeStart < newVal)) item.rangeStart = item.rangeStart || newVal;
+          if (item.repeat === 'range' && (!item.rangeEnd || item.rangeEnd > newVal)) item.rangeEnd = item.rangeEnd || newVal;
+          saveSpecialDates();
+          renderCalendar();
+          if (state.viewMode === 'calendarFull') renderCalendarFull();
+          renderSpecialDatesList();
+        }
+        closeSpecialDatesRangePopover();
+      });
+    } else if (type === 'category') {
+      var tabs = (state.memoTabs || []).filter(function (t) { return !isDeletedTabId(t.id); });
+      var currentId = item.memoTabId || getPersonalTabId() || (tabs[0] && tabs[0].id) || '';
+      var opts = tabs.map(function (t) {
+        var sel = t.id === currentId ? ' selected' : '';
+        return '<option value="' + (t.id || '').replace(/"/g, '&quot;') + '"' + sel + '>' + (t.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</option>';
+      }).join('');
+      wrap.innerHTML = '<div class="special-dates-range-edit-popover-inner"><div class="range-period-row" style="margin:0"><label>분류</label><select id="special-dates-edit-category">' + opts + '</select></div><button type="button" class="btn-primary btn-small special-dates-range-edit-apply">적용</button></div>';
+      document.body.appendChild(wrap);
+      var rect = anchor.getBoundingClientRect();
+      wrap.style.left = Math.min(rect.left, window.innerWidth - (wrap.offsetWidth || 180) - 8) + 'px';
+      wrap.style.top = (rect.bottom + 4) + 'px';
+      wrap.querySelector('.special-dates-range-edit-apply').addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var el = document.getElementById('special-dates-edit-category');
+        if (el) item.memoTabId = el.value || undefined;
+        saveSpecialDates();
+        renderCalendar();
+        if (state.viewMode === 'calendarFull') renderCalendarFull();
+        renderSpecialDatesList();
+        closeSpecialDatesRangePopover();
+      });
+    } else if (type === 'repeat') {
+      var repeatOptions = [
+        { value: 'none', label: '반복 없음' },
+        { value: 'daily', label: '매일' },
+        { value: 'weekly', label: '매주' },
+        { value: 'monthly', label: '매월' },
+        { value: 'yearly', label: '매년' },
+        { value: 'range', label: '기간' }
+      ];
+      var currentRepeat = (item.repeat && item.repeat !== 'none') ? item.repeat : 'none';
+      var opts = repeatOptions.map(function (r) {
+        var sel = r.value === currentRepeat ? ' selected' : '';
+        return '<option value="' + r.value + '"' + sel + '>' + r.label + '</option>';
+      }).join('');
+      wrap.innerHTML = '<div class="special-dates-range-edit-popover-inner"><div class="range-period-row" style="margin:0"><label>반복주기</label><select id="special-dates-edit-repeat">' + opts + '</select></div><button type="button" class="btn-primary btn-small special-dates-range-edit-apply">적용</button></div>';
+      document.body.appendChild(wrap);
+      var rect = anchor.getBoundingClientRect();
+      wrap.style.left = Math.min(rect.left, window.innerWidth - (wrap.offsetWidth || 160) - 8) + 'px';
+      wrap.style.top = (rect.bottom + 4) + 'px';
+      wrap.querySelector('.special-dates-range-edit-apply').addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var el = document.getElementById('special-dates-edit-repeat');
+        var newRepeat = (el && el.value) ? el.value : 'none';
+        if (newRepeat === 'none') newRepeat = 'none';
+        item.repeat = newRepeat;
+        if (newRepeat === 'range') {
+          if (!item.rangeStart) item.rangeStart = item.dateKey || '';
+          if (!item.rangeEnd) item.rangeEnd = item.dateKey || '';
+          if (!item.rangeDays) item.rangeDays = { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true, holiday: true };
+        } else {
+          item.rangeStart = '';
+          item.rangeEnd = '';
+          item.rangeDays = undefined;
+        }
+        saveSpecialDates();
+        renderCalendar();
+        if (state.viewMode === 'calendarFull') renderCalendarFull();
+        renderSpecialDatesList();
+        closeSpecialDatesRangePopover();
+      });
+    }
+    setTimeout(function () { document.addEventListener('click', specialDatesRangePopoverOutside); }, 0);
+  }
   document.getElementById('special-dates-list').addEventListener('click', function (e) {
     const btn = e.target.closest('.special-dates-item-del');
-    if (!btn || !btn.dataset.id) return;
-    state.specialDates = (state.specialDates || []).filter(function (s) { return s.id !== btn.dataset.id; });
-    saveSpecialDates();
-    renderCalendar();
-    if (state.viewMode === 'calendarFull') renderCalendarFull();
-    renderSpecialDatesList();
+    if (btn && btn.dataset.id) {
+      state.specialDates = (state.specialDates || []).filter(function (s) { return s.id !== btn.dataset.id; });
+      saveSpecialDates();
+      renderCalendar();
+      if (state.viewMode === 'calendarFull') renderCalendarFull();
+      renderSpecialDatesList();
+      return;
+    }
+    const rangeDaysEl = e.target.closest('.special-dates-item-range-days');
+    if (rangeDaysEl && rangeDaysEl.dataset.id) {
+      e.preventDefault();
+      e.stopPropagation();
+      openRangeDaysEditor(rangeDaysEl.dataset.id, rangeDaysEl);
+      return;
+    }
+    const rangeDatesEl = e.target.closest('.special-dates-item-range-dates');
+    if (rangeDatesEl && rangeDatesEl.dataset.id) {
+      e.preventDefault();
+      e.stopPropagation();
+      openRangeDatesEditor(rangeDatesEl.dataset.id, rangeDatesEl);
+      return;
+    }
+    const categoryEl = e.target.closest('.special-dates-item-category');
+    if (categoryEl && categoryEl.dataset.id) {
+      e.preventDefault();
+      e.stopPropagation();
+      openSpecialDateFieldEditor(categoryEl.dataset.id, categoryEl, 'category');
+      return;
+    }
+    const dateEl = e.target.closest('.special-dates-item-date');
+    if (dateEl && dateEl.dataset.id) {
+      e.preventDefault();
+      e.stopPropagation();
+      openSpecialDateFieldEditor(dateEl.dataset.id, dateEl, 'date');
+      return;
+    }
+    const repeatEl = e.target.closest('.special-dates-item-repeat');
+    if (repeatEl && repeatEl.dataset.id) {
+      e.preventDefault();
+      e.stopPropagation();
+      openSpecialDateFieldEditor(repeatEl.dataset.id, repeatEl, 'repeat');
+      return;
+    }
+    const labelEl = e.target.closest('.special-dates-item-label');
+    if (!labelEl || !labelEl.dataset.id || labelEl.querySelector('input.special-dates-item-label-input')) return;
+    var id = labelEl.dataset.id;
+    var currentText = (labelEl.textContent || '').trim();
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'special-dates-item-label-input';
+    input.value = currentText;
+    input.maxLength = 20;
+    input.dataset.id = id;
+    labelEl.textContent = '';
+    labelEl.appendChild(input);
+    input.focus();
+    input.select();
+    function finishEdit() {
+      var newVal = (input.value || '').trim();
+      var item = (state.specialDates || []).find(function (s) { return s.id === id; });
+      if (item) {
+        item.label = newVal || '';
+        saveSpecialDates();
+        renderCalendar();
+        if (state.viewMode === 'calendarFull') renderCalendarFull();
+      }
+      labelEl.removeChild(input);
+      labelEl.textContent = newVal || '';
+      labelEl.title = '클릭하여 수정';
+    }
+    input.addEventListener('blur', function () { finishEdit(); });
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        labelEl.removeChild(input);
+        labelEl.textContent = currentText;
+        labelEl.title = '클릭하여 수정';
+      }
+    });
   });
 
   const todoListEl = document.getElementById('todo-list');
@@ -2710,17 +3106,42 @@ delBtn.title = '삭제';
       todoViewCaptionEl.style.display = '';
       if (state.selectedDate) {
         const d = state.selectedDate;
+        const key = dateKey(d);
         const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
         const wd = weekdays[d.getDay()];
-        const holidayName = getHolidayName(dateKey(d));
-        const dateStr = d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + wd + ')   ';
+        const holidayName = getHolidayName(key);
+        const specialLabels = getSpecialDateLabels(key);
+        const dateStr = d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + wd + ')';
+        var firstLine = '<span class="caption-date">' + dateStr + '</span>';
         if (holidayName) {
-          todoViewCaptionEl.innerHTML = '<span class="caption-date">' + dateStr + '</span><span class="caption-holiday">&lt;' + holidayName + '&gt;</span>';
+          firstLine += '   <span class="caption-holiday">【 ' + (holidayName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')) + ' 】</span>    ';
           todoViewCaptionEl.classList.remove('caption-no-holiday');
         } else {
-          todoViewCaptionEl.textContent = dateStr.trim();
           todoViewCaptionEl.classList.add('caption-no-holiday');
         }
+        if (specialLabels.length > 0) {
+          firstLine += (holidayName ? '' : '     ') + '<span class="caption-special-dates">' + specialLabels.map(function (l) {
+            return '<span class="caption-special-date-name">' + (l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')) + '</span>';
+          }).join(' / ') + '</span>';
+        }
+        var repeatLine = '';
+        const bySection = getTodosForDate(key);
+        const repeating = ['morning', 'lunch', 'afternoon', 'evening'].flatMap(function (s) {
+          return (bySection[s] || []).filter(function (t) { return t.repeat && t.repeat !== 'none'; });
+        });
+        if (repeating.length > 0) {
+          repeatLine = '<div class="caption-repeat-line">' + repeating.map(function (t) {
+            const section = t.section || 'morning';
+            const colorIdx = getTodoColorIndex(t, section);
+            const title = (t.title || '').trim().slice(0, 24) + ((t.title || '').length > 24 ? '…' : '');
+            const safe = (title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            return '<span class="caption-repeat-item caption-repeat-bg-' + colorIdx + '">' + safe + '</span>';
+          }).join(' ') + '</div>';
+          todoViewCaptionEl.classList.add('has-caption-repeat');
+        } else {
+          todoViewCaptionEl.classList.remove('has-caption-repeat');
+        }
+        todoViewCaptionEl.innerHTML = '<div class="caption-first-line">' + firstLine + '</div>' + repeatLine;
         todoViewCaptionEl.classList.remove('caption-sat', 'caption-sun-holiday');
         if (holidayName) {
           todoViewCaptionEl.classList.add('caption-sun-holiday');
@@ -2731,7 +3152,7 @@ delBtn.title = '삭제';
         }
       } else {
         todoViewCaptionEl.textContent = '';
-        todoViewCaptionEl.classList.remove('caption-sat', 'caption-sun-holiday');
+        todoViewCaptionEl.classList.remove('caption-sat', 'caption-sun-holiday', 'has-caption-repeat');
       }
     }
   }

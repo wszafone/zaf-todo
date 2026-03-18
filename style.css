@@ -3,7 +3,9 @@
   --bg: #f8f9fa;
   --panel: #ffffff;
   --border: #e0e4e8;
+  --border-strong: #b8c0c8;
   --text: #000000;
+  --placeholder-text: #9ca3af;
   --text-muted: #5c6370;
   --primary: #4db8e8;
   --section-morning: #e8f4fd;
@@ -155,12 +157,21 @@ header {
   background: #e3f2fd;
   text-align: center;
   color: var(--panel-title-color);
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
 }
 .panel-title.panel-title-todo {
   justify-content: space-between;
   height: 34px;
   min-height: 34px;
   color: var(--panel-title-color);
+}
+.panel-title.panel-title-todo:has(.todo-view-caption.has-caption-repeat) {
+  min-height: 34px;
+  height: 34px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .panel-title .todo-view-caption,
 .panel-title .nav-btn,
@@ -182,11 +193,13 @@ header {
 .calendar-col .calendar-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: 4px;
+  padding: 4px 6px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   background: var(--panel);
+  position: relative;
+  z-index: 2;
 }
 
 .calendar-col .calendar-header .cal-month-year {
@@ -194,26 +207,40 @@ header {
   line-height: 1;
   font-weight: var(--title-font-weight);
   color: #4b5563;
+  white-space: nowrap;
 }
 .calendar-col .calendar-header .nav-btn {
   border: none;
   background: transparent;
   font-size: var(--font-size);
-  line-height: 1;
+  line-height: 1.35;
   font-weight: var(--title-font-weight);
-  padding: 2px 5px;
+  padding: 4px 6px;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #000;
+  transition: background 0.15s, color 0.15s;
 }
 .calendar-col .calendar-header .nav-btn:hover {
-  background: #b3e5fc;
-  color: var(--primary);
+  background: transparent;
+  color: var(--primary) !important;
   border-radius: 4px;
 }
+.calendar-col .calendar-header .nav-btn:hover * {
+  color: inherit;
+}
+.calendar-col .calendar-header .nav-btn.nav-btn-today,
+.calendar-col .calendar-header .nav-btn.cal-type-toggle-btn {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+}
 .calendar-col .calendar-header #cal-year-next {
-  margin-left: -8px !important;
+  margin-left: -2px !important;
 }
 .calendar-col .calendar-header #cal-year-prev {
-  margin-right: -8px !important;
+  margin-right: -2px !important;
 }
 
 .calendar-col .calendar-header #cal-special-dates-btn {
@@ -227,13 +254,20 @@ header {
   border-radius: 6px;
 }
 .calendar-col .calendar-header #cal-special-dates-btn:hover {
-  background: #b3e5fc;
-  border-color: var(--primary);
+  background: #fff;
+  border: none;
 }
 .calendar-col .calendar-header #cal-special-dates-btn:hover::before {
   opacity: 1;
 }
 
+.calendar-col .calendar-header .cal-type-toggle-btn {
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  width: auto;
+  min-width: 0;
+}
 .cal-type-toggle-btn {
   padding: 4px 8px;
   font-size: 12px;
@@ -352,6 +386,24 @@ header {
 .cal-day-above {
   padding-top: 4px;
 }
+.cal-day-dots {
+  display: inline-block;
+  font-size: 5px;
+  line-height: 1;
+  letter-spacing: 0.15em;
+  vertical-align: middle;
+}
+.cal-day-dots-special,
+.cal-day-dots-repeat {
+  font-size: 5px;
+}
+.cal-day-dots-special {
+  color: #c5221f;
+  font-size: 12px;
+}
+.cal-day-dots-repeat {
+  color: #1565c0;
+}
 .cal-day-num-wrap {
   display: flex;
   align-items: center;
@@ -421,11 +473,14 @@ header {
 }
 
 .cal-day .cal-holiday-name {
-  display: block;
+  display: inline;
   font-size: 10px;
   line-height: 1.1;
   margin-top: 1px;
-  font-weight: 400;
+  font-weight: 700;
+}
+.cal-day .cal-special-date-name {
+  display: inline;
 }
 .cal-day .cal-lunar-date {
   display: block;
@@ -441,16 +496,29 @@ header {
   -webkit-font-smoothing: antialiased;
 }
 .cal-day .cal-special-date-name {
-  display: block;
   font-size: 9px;
   line-height: 1.1;
-  margin-bottom: 1px;
-  font-weight: 400;
-  color: #1565c0;
+  margin-bottom: 0;
+  font-weight: 700;
+  color: #c5221f;
   letter-spacing: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cal-day .cal-special-date-dots {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.cal-day .cal-special-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  background: #b71c1c;
+  border-radius: 50%;
 }
 
 .cal-day.today {
@@ -939,21 +1007,36 @@ header {
   flex-wrap: wrap;
   padding: 2px 0;
   border: none;
+  position: relative;
+  z-index: 1;
 }
 .calendar-full-header-inline .nav-btn {
-  padding: 4px 6px;
+  padding: 6px 8px;
+  min-height: 28px;
   font-size: calc(var(--font-size) + 1pt);
-  line-height: 1.25;
+  line-height: 1.35;
   border-radius: 4px;
   background: transparent;
   border: none;
   box-shadow: none;
   color: var(--text);
   font-weight: var(--title-font-weight);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
 }
 .calendar-full-header-inline .nav-btn:hover {
-  background: #b3e5fc;
-  color: var(--primary);
+  background: transparent;
+  color: var(--primary) !important;
+}
+.calendar-full-header-inline .nav-btn:hover * {
+  color: inherit;
+}
+.calendar-full-header-inline .nav-btn.nav-btn-today,
+.calendar-full-header-inline .nav-btn.cal-type-toggle-btn {
+  border: 1px solid var(--border-strong);
+  background: transparent;
 }
 .calendar-full-header-inline #cal-full-year-next {
   margin-left: -2px !important;
@@ -962,9 +1045,13 @@ header {
   margin-right: -2px !important;
 }
 .calendar-full-header-inline .nav-btn-today {
-  padding: 4px 6px;
+  padding: 6px 8px;
+  min-height: 28px;
   font-size: calc(var(--font-size) + 1pt);
-  line-height: 1.25;
+  line-height: 1.35;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   border-radius: 4px;
@@ -974,8 +1061,8 @@ header {
   font-weight: var(--title-font-weight);
 }
 .calendar-full-header-inline .nav-btn-today:hover {
-  background: #b3e5fc;
-  color: var(--primary);
+  background: transparent;
+  color: var(--primary) !important;
 }
 .calendar-full-header-inline .cal-month-year {
   font-size: calc(var(--font-size) + 1pt);
@@ -989,14 +1076,29 @@ header {
 .panel-title.panel-title-todo .todo-view-caption {
   flex: 1;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
   font-weight: var(--title-font-weight);
   font-size: calc(var(--font-size) + 1pt);
-  gap: 0.75em;
-  line-height: 1;
-  transform: translateY(1px);
+  gap: 0.1em;
+  line-height: 1.15;
+  transform: translateY(0);
+  overflow: visible;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+}
+.panel-title.panel-title-todo .todo-view-caption .caption-first-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25em;
+  margin: 0;
+  padding: 0;
+  line-height: 1.15;
 }
 .panel-title.panel-title-todo .todo-view-caption .caption-date {
   flex-shrink: 0;
@@ -1004,6 +1106,46 @@ header {
 .panel-title.panel-title-todo .todo-view-caption .caption-holiday {
   flex-shrink: 0;
 }
+.panel-title.panel-title-todo .todo-view-caption .caption-special-dates {
+  display: inline;
+  flex-shrink: 0;
+  margin-left: 2ch;
+}
+.panel-title.panel-title-todo .todo-view-caption .caption-special-date-name {
+  font-weight: 700;
+  color: #c5221f;
+}
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+  line-height: 1.1;
+}
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-item {
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  line-height: 1.2;
+}
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-0 { background: #e8f4fd; color: #0d47a1; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-1 { background: #fff9c4; color: #f57f17; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-2 { background: #f0f8e8; color: #2e7d32; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-3 { background: #fce4ec; color: #c2185b; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-4 { background: #e1f5fe; color: #0277bd; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-5 { background: #f3e5f5; color: #7b1fa2; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-6 { background: #fff8e1; color: #ef6c00; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-7 { background: #e8f5e9; color: #1b5e20; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-8 { background: #fbe9e7; color: #bf360c; }
+.panel-title.panel-title-todo .todo-view-caption .caption-repeat-bg-9 { background: #f5f5f5; color: #424242; }
 .panel-title.panel-title-todo .todo-view-caption.caption-sat {
   color: #1a73e8;
 }
@@ -1014,10 +1156,10 @@ header {
   flex-shrink: 0;
   width: fit-content;
   min-width: 0;
-  padding: 2px 10px;
+  padding: 6px 10px;
   font-size: calc(var(--font-size) + 1pt);
   font-weight: var(--title-font-weight);
-  border: none;
+  border: 1px solid var(--border-strong);
   background: transparent;
   border-radius: 6px;
   cursor: pointer;
@@ -1025,21 +1167,53 @@ header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   white-space: nowrap;
-  line-height: 1;
+  line-height: 1.35;
   transition: background 0.15s, color 0.15s;
   outline: none;
   box-shadow: none;
+  text-align: center;
+}
+.view-toggle-btn.view-toggle-cal {
+  padding-left: calc(10px - 4ch);
+  padding-right: calc(10px + 4ch);
+}
+/* 달력 보기 버튼: 패널 안에서 패딩 덮어쓰기 방지 + 내용 왼쪽 이동 */
+.panel-title.panel-title-todo .view-toggle-btn.view-toggle-cal {
+  padding-left: calc(4px - 3ch);
+  padding-right: 4px;
+}
+.view-toggle-btn.view-toggle-cal .view-toggle-text,
+.view-toggle-btn.view-toggle-cal .view-toggle-arrow:not(.view-toggle-arrow--spacer) {
+  transform: translateX(-6px);
+}
+/* 달력 보기 텍스트 박스: 오른쪽을 더 줄임 */
+.view-toggle-btn.view-toggle-cal .view-toggle-arrow:not(.view-toggle-arrow--spacer) {
+  margin-right: -1.1ch;
+}
+/* 할일 보기 버튼: "〈 할일 보기" 텍스트 오른쪽으로 이동 */
+.view-toggle-btn.view-toggle-todo .view-toggle-text,
+.view-toggle-btn.view-toggle-todo .view-toggle-arrow:not(.view-toggle-arrow--spacer) {
+  transform: translateX(12px);
+}
+/* 할일 보기 텍스트 박스: 왼쪽을 조금 줄임 */
+.view-toggle-btn.view-toggle-todo .view-toggle-arrow:not(.view-toggle-arrow--spacer) {
+  margin-left: -1.5ch;
 }
 .view-toggle-btn:focus,
 .view-toggle-btn:focus-visible,
 .view-toggle-btn:active {
   outline: none;
   box-shadow: none;
-  border: none;
+  border: 1px solid var(--border-strong);
 }
 .view-toggle-btn:hover {
-  background: #b3e5fc;
+  background: transparent;
+  color: var(--primary);
+}
+.view-toggle-btn:hover .view-toggle-text,
+.view-toggle-btn:hover .view-toggle-arrow {
   color: var(--primary);
 }
 .view-toggle-btn:active,
@@ -1048,36 +1222,64 @@ header {
   color: #000000;
 }
 .view-toggle-btn.active:hover {
-  background: #b3e5fc;
+  background: transparent;
   color: var(--primary);
 }
 
+.view-toggle-btn .view-toggle-arrow,
+.view-toggle-btn .view-toggle-text {
+  pointer-events: none;
+}
 .view-toggle-arrow {
   font-weight: var(--title-font-weight);
-  color: #000000;
+  color: inherit;
+  width: 1em;
+  min-width: 1em;
+  flex: 0 0 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.35;
+}
+.view-toggle-arrow--spacer {
+  visibility: hidden;
+  pointer-events: none;
+}
+.view-toggle-text {
+  min-width: 0;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.35;
+  color: inherit;
 }
 
 .panel-title.panel-title-todo .view-toggle-btn {
-  padding: 4px 6px;
-  line-height: 1.25;
+  padding: 6px 4px;
+  line-height: 1.35;
   border-radius: 4px;
+  height: 28px;
+  min-height: 28px;
+  box-sizing: border-box;
   align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.panel-title.panel-title-todo .view-toggle-btn.view-toggle-cal {
-  padding-left: 5px;
-  padding-right: 5px;
-}
-.panel-title.panel-title-todo .view-toggle-btn.view-toggle-todo {
-  padding-left: 5px;
-  padding-right: 5px;
-}
-.panel-title.panel-title-todo .view-toggle-btn,
-.panel-title.panel-title-todo .view-toggle-btn .view-toggle-arrow {
+.panel-title.panel-title-todo .view-toggle-btn {
   color: #000000 !important;
 }
-.panel-title.panel-title-todo .view-toggle-btn:hover,
-.panel-title.panel-title-todo .view-toggle-btn:hover .view-toggle-arrow {
+.panel-title.panel-title-todo .view-toggle-btn .view-toggle-arrow,
+.panel-title.panel-title-todo .view-toggle-btn .view-toggle-text {
+  color: inherit !important;
+}
+.panel-title.panel-title-todo .view-toggle-btn:hover {
   color: var(--primary) !important;
+}
+.panel-title.panel-title-todo .view-toggle-btn:hover .view-toggle-arrow,
+.panel-title.panel-title-todo .view-toggle-btn:hover .view-toggle-text {
+  color: inherit !important;
 }
 .panel-title.panel-title-todo .todo-view-caption {
   color: var(--panel-title-color);
@@ -1146,6 +1348,8 @@ header {
 }
 .cal-full-day {
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: #ffffff;
@@ -1204,11 +1408,13 @@ header {
 }
 .cal-full-day-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   flex-shrink: 0;
   padding: 0 2px 2px;
   min-height: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .cal-full-day-head-center {
   display: flex;
@@ -1217,6 +1423,12 @@ header {
   justify-content: center;
   flex: 1;
   min-width: 0;
+}
+.cal-full-day-head .cal-full-add {
+  flex-shrink: 0;
+  margin-left: auto;
+  align-self: flex-start;
+  margin-top: -4px;
 }
 .cal-full-day-head-labels {
   text-align: center;
@@ -1229,12 +1441,25 @@ header {
   margin-top: 1px;
 }
 .cal-full-day-head-labels .cal-full-holiday-name,
-.cal-full-day-head-labels .cal-full-special-date-name {
-  display: block;
+.cal-full-day-head-labels .cal-full-special-date-name,
+.cal-full-day-head-labels .cal-full-lunar-date {
+  display: inline;
   flex: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.cal-full-day-head-labels .cal-full-holiday-name,
+.cal-full-day-head-labels .cal-full-special-date-name {
+  font-weight: 700;
+}
+.cal-full-day-head-labels .cal-full-special-date-name {
+  color: #c5221f;
+}
+.cal-full-day-head-labels .cal-full-holiday-name + .cal-full-special-date-name,
+.cal-full-day-head-labels .cal-full-special-date-name + .cal-full-lunar-date,
+.cal-full-day-head-labels .cal-full-holiday-name + .cal-full-lunar-date {
+  margin-left: 0.25em;
 }
 .cal-full-day.cal-sun .cal-full-num { color: #c62828 !important; }
 .cal-full-day.cal-sat .cal-full-num { color: #1565c0 !important; }
@@ -1248,7 +1473,7 @@ header {
 .cal-full-day-head .cal-full-holiday-name {
   text-align: center;
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 700;
   color: #b71c1c;
   padding: 0 2px;
   letter-spacing: 0.02em;
@@ -1262,15 +1487,17 @@ header {
 .cal-full-day-head .cal-full-special-date-name {
   text-align: center;
   font-size: 10px;
-  font-weight: 400;
-  color: #1565c0;
+  font-weight: 700;
+  color: #c5221f;
   padding: 0 2px;
 }
 .cal-full-todos-wrap {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .cal-full-todos {
   list-style: none;
@@ -1280,6 +1507,28 @@ header {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+.cal-full-special-dates-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0 2px;
+  flex-shrink: 0;
+  list-style: none;
+}
+.cal-full-special-dates-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c5221f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  min-width: 0;
 }
 .cal-full-day-todo {
   display: flex;
@@ -1355,8 +1604,9 @@ header {
 .cal-full-todo-icons .cal-full-todo-important.cal-full-todo-important-red { color: var(--danger, #c53030); }
 .cal-full-todo-icons .cal-full-todo-repeat.cal-full-todo-repeat-on { color: var(--info, #0d6efd); }
 .cal-full-day-todo.cal-full-todo-completed .cal-full-todo-title { text-decoration: line-through; opacity: 0.8; }
-.cal-full-day-todo.cal-full-todo-important-blue .cal-full-todo-title { color: var(--info, #0d6efd); font-weight: 400; }
-.cal-full-day-todo.cal-full-todo-important-red .cal-full-todo-title { color: var(--danger, #c53030); font-weight: 400; }
+.cal-full-day-todo.cal-full-todo-important-blue .cal-full-todo-title { color: var(--info, #0d6efd); font-weight: 700; }
+.cal-full-day-todo.cal-full-todo-important-red .cal-full-todo-title { color: var(--danger, #c53030); font-weight: 700; }
+.cal-full-day-todo.cal-full-todo-repeat-on .cal-full-todo-title { font-weight: 700; }
 .cal-full-todo-title {
   flex: 1;
   min-width: 0;
@@ -1404,6 +1654,7 @@ header {
   flex-shrink: 0;
   width: 22px;
   height: 22px;
+  min-width: 22px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -1415,7 +1666,6 @@ header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: center;
 }
 .cal-full-add:hover {
   background: transparent;
@@ -1476,7 +1726,7 @@ header {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  padding: 4px 8px;
+  padding: 0 8px 2px 8px;
 }
 .todo-section.section-completed {
   flex-shrink: 0;
@@ -1484,7 +1734,7 @@ header {
 }
 
 .todo-section {
-  margin-bottom: 6px;
+  margin-bottom: 2px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -1608,7 +1858,7 @@ header {
 .todo-items {
   list-style: none;
   margin: 0;
-  padding: 2px 4px;
+  padding: 0 4px 1px 4px;
   min-height: 28px;
 }
 
@@ -1616,7 +1866,7 @@ header {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 2px 4px;
+  padding: 0 4px;
   margin-bottom: 1px;
   border-radius: 6px;
   border: 1px solid transparent;
@@ -1772,13 +2022,36 @@ header {
   color: #1a1a1a;
   border: none;
   background: transparent;
-  padding: 1px 4px;
+  padding: 0 4px;
   border-radius: 4px;
 }
 
 .todo-item-title-input:focus {
   outline: none;
   background: transparent;
+}
+
+/* 빈 제목: placeholder 12px, 볼드 제거, 회색 */
+.todo-item-title-input::placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.todo-item-title-input::-webkit-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.todo-item-title-input::-moz-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+  opacity: 1;
+}
+.todo-item-title-input:-ms-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
 }
 
 .todo-item-desc,
@@ -1794,7 +2067,7 @@ header {
   font-weight: 400;
   border: none;
   background: transparent;
-  padding: 1px 4px;
+  padding: 0 4px;
   border-radius: 4px;
   margin-left: -20px;
 }
@@ -1804,9 +2077,27 @@ header {
   background: transparent;
 }
 
+/* 빈 내용: placeholder 12px, 볼드 제거, 회색 */
 .todo-item-desc-input::placeholder {
-  color: var(--text-muted);
-  opacity: 0.8;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.todo-item-desc-input::-webkit-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.todo-item-desc-input::-moz-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+  opacity: 1;
+}
+.todo-item-desc-input:-ms-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
 }
 
 .todo-item-actions {
@@ -2002,6 +2293,31 @@ header {
   min-width: 0;
 }
 
+/* 메모 전체 버튼: 달력 보기 오늘 버튼과 동일 스타일(테두리 포함) */
+.memo-tab-bar .nav-btn.nav-btn-today {
+  flex-shrink: 0;
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+  padding: 4px 6px;
+  font-size: calc(var(--font-size) + 1pt);
+  line-height: 1.25;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: var(--title-font-weight);
+}
+.memo-tab-bar .nav-btn.nav-btn-today:hover {
+  background: transparent;
+  color: var(--primary);
+}
+.memo-tab-bar .nav-btn.nav-btn-today.active {
+  font-weight: var(--title-font-weight);
+}
+
 /* 전체 보기일 때는 삼선 옆 + 버튼 숨김 */
 .memo-view-all #memo-add-next-to-reorder {
   display: none;
@@ -2039,11 +2355,9 @@ header {
 .memo-col:not(.memo-view-all) .memo-tab-bar {
   display: flex;
   align-items: center;
-  min-height: 44px;
 }
 .memo-col:not(.memo-view-all) .memo-dropdown-wrap {
   align-items: center;
-  min-height: 44px;
 }
 .memo-col:not(.memo-view-all) #memo-add-next-to-reorder {
   margin-left: auto;
@@ -2080,7 +2394,7 @@ header {
 
 .memo-category-select:focus {
   outline: none;
-  border-color: var(--primary);
+  border-color: var(--border);
 }
 
 .memo-tab-actions {
@@ -2669,6 +2983,29 @@ header {
   box-shadow: none;
 }
 
+/* 빈 제목: placeholder 12px, 볼드 제거, 회색 */
+.memo-item-title::placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.memo-item-title::-webkit-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.memo-item-title::-moz-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+  opacity: 1;
+}
+.memo-item-title:-ms-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+
 .memo-item-content {
   margin-left: calc(1em + 2px + 22px + 2px);
   width: calc(100% - 1em - 2px - 22px - 2px);
@@ -2692,6 +3029,56 @@ header {
   outline: none;
   border: none;
   box-shadow: none;
+}
+
+/* 빈 내용: placeholder 12px, 볼드 제거, 회색 */
+.memo-item-content::placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.memo-item-content::-webkit-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+.memo-item-content::-moz-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+  opacity: 1;
+}
+.memo-item-content:-ms-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+
+/* 할일 모달 빈 제목/내용: placeholder 12px, 볼드 제거, 회색 */
+#todo-title::placeholder,
+#todo-desc::placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+#todo-title::-webkit-input-placeholder,
+#todo-desc::-webkit-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+}
+#todo-title::-moz-placeholder,
+#todo-desc::-moz-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
+  opacity: 1;
+}
+#todo-title:-ms-input-placeholder,
+#todo-desc:-ms-input-placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--placeholder-text);
 }
 
 .memo-item-input {
@@ -2796,21 +3183,33 @@ header {
   background: var(--panel);
   padding: 20px;
   border-radius: 10px;
-  width: 90%;
-  max-width: 420px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
-.modal-sm {
-  max-width: 320px;
+/* 기본 모달 너비 (반복일정 모달은 아래 + HTML 인라인 스타일에서 470px로 덮음) */
+.modal:not(#special-dates-modal) .modal-content {
+  width: 90%;
+  max-width: 450px;
 }
 
-#special-dates-modal .modal-content {
+.modal-sm {
+  max-width: 350px;
+}
+
+/* 반복일정 모달만 380px */
+#special-dates-modal > .modal-content,
+#special-dates-modal-content {
   text-align: left;
+  box-sizing: border-box;
+  flex: 0 0 380px;
+  width: 380px !important;
+  min-width: 380px !important;
+  max-width: 90vw !important;
+  flex-shrink: 0;
 }
 
 .modal-xs {
-  max-width: 260px;
+  max-width: 290px;
 }
 
 .special-dates-desc {
@@ -2835,8 +3234,10 @@ header {
   box-sizing: border-box;
 }
 .special-dates-label-row #special-date-label {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 120px;
+  width: 0;
+  box-sizing: border-box;
 }
 #special-dates-modal #special-date-label {
   border: 1px solid var(--border);
@@ -2851,38 +3252,27 @@ header {
 }
 .special-date-selected-display {
   flex-shrink: 0;
+  margin-left: auto;
   font-size: var(--font-size);
   color: var(--text);
   font-family: var(--font-family);
   line-height: 1.4;
 }
 
-/* 반복일정 모달: 분류 | [캘린더+반복없음] | 추가. 추가 버튼 오른쪽 끝 = 명칭 박스 오른쪽 끝 */
+/* 반복일정 모달: 분류·반복 설정 줄 양쪽 맞춤 */
 #special-dates-modal .special-dates-control-row {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding-right: 88px; /* 추가 버튼 오른쪽 끝 = 위 명칭 박스 오른쪽 끝 */
-}
-#special-dates-modal .special-dates-control-row #special-date-add-btn {
-  flex: 0 0 auto;
-  width: auto;
-  min-width: 0;
-  padding: 6px 8px;
-  line-height: 1.4;
-  font-size: var(--font-size);
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: 0;
 }
 #special-dates-modal .special-dates-control-row #special-date-category {
-  flex: 0 0 auto;
-  min-width: 70px;
+  flex: 1 1 auto;
+  min-width: 100px;
   font-size: var(--font-size);
   font-family: var(--font-family);
   line-height: 1.4;
@@ -2898,7 +3288,7 @@ header {
 }
 /* 캘린더 + 반복없음 한 묶음: 날짜 102px 고정, 반복은 그 옆에 바로 붙음 */
 #special-dates-modal .special-dates-control-row .special-date-input-center-wrap {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2915,8 +3305,8 @@ header {
   padding: 0;
 }
 #special-dates-modal .special-dates-control-row .special-date-input-center-wrap #special-date-repeat {
-  flex: 0 0 auto;
-  min-width: 70px;
+  flex: 1 1 auto;
+  min-width: 110px;
   font-size: var(--font-size);
   font-family: var(--font-family);
   line-height: 1.4;
@@ -3103,16 +3493,36 @@ header {
 }
 .special-dates-list {
   list-style: none;
-  margin: 0 0 12px 0;
+  margin: 12px 0 0 0;
   padding: 0;
-  max-height: 200px;
+  max-height: 320px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+#special-dates-modal .special-dates-list {
+  overflow-y: scroll;
+}
+#special-dates-modal .special-dates-list::-webkit-scrollbar {
+  width: 4px;
+}
+#special-dates-modal .special-dates-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+#special-dates-modal .special-dates-list::-webkit-scrollbar-thumb {
+  background: var(--border-strong, #b8c0c8);
+  border-radius: 2px;
+}
+#special-dates-modal .special-dates-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted, #5c6370);
 }
 .special-dates-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px 8px;
   border-bottom: 1px solid var(--border);
   font-size: var(--font-size);
 }
@@ -3120,7 +3530,8 @@ header {
   flex-shrink: 0;
   font-size: 11px;
   color: var(--text-muted);
-  max-width: 80px;
+  width: calc(6ch + 25px);
+  max-width: calc(6ch + 25px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3134,11 +3545,102 @@ header {
   flex: 1;
   min-width: 0;
   color: #1565c0;
-  font-weight: 500;
+  font-weight: 700;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
 }
+.special-dates-item-label-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1565c0;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  box-sizing: border-box;
+}
+.special-dates-item-label-input:focus {
+  outline: none;
+}
+/* 등록된 반복일정: 반복유형을 배지로 표시 (반복없음/매일/매주/매월/매년/기간) */
 .special-dates-item-repeat {
   flex-shrink: 0;
   font-size: 10px;
+  padding: 2px 6px;
+  margin-left: 2em;
+  border-radius: 4px;
+  font-weight: 500;
+  box-sizing: border-box;
+}
+.special-dates-item-repeat[data-repeat="none"] {
+  color: var(--text-muted);
+  background: #e8eaed;
+}
+.special-dates-item-repeat[data-repeat="daily"] {
+  color: #0d47a1;
+  background: #e3f2fd;
+}
+.special-dates-item-repeat[data-repeat="weekly"] {
+  color: #1b5e20;
+  background: #e8f5e9;
+}
+.special-dates-item-repeat[data-repeat="monthly"] {
+  color: #4a148c;
+  background: #f3e5f5;
+}
+.special-dates-item-repeat[data-repeat="yearly"] {
+  color: #e65100;
+  background: #fff3e0;
+}
+/* 기간인 경우: 제목 줄 아래에 적용요일·기간 한 줄로 표시 */
+.special-dates-item--range {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.special-dates-item--range .special-dates-item-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.special-dates-item--range .special-dates-item-range-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding-left: 0;
+  margin-top: 0;
+}
+.special-dates-item-range-days {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.special-dates-item-range-sep {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.special-dates-item-repeat[data-repeat="range"] {
+  color: #004d40;
+  background: #e0f2f1;
+}
+.special-dates-item--range .special-dates-item-range-dates {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
 }
 .special-dates-item-lunar {
   flex-shrink: 0;
@@ -3160,6 +3662,75 @@ header {
   padding: 0;
   font-size: 16px;
   line-height: 1;
+  border: none;
+  background: transparent;
+  margin-left: auto;
+}
+.special-dates-item-del:hover {
+  background: transparent;
+  border: none;
+  color: var(--danger, #b71c1c);
+}
+
+.special-dates-item-range-days,
+.special-dates-item-range-dates,
+.special-dates-item-category,
+.special-dates-item-date,
+.special-dates-item-repeat {
+  cursor: pointer;
+}
+.special-dates-item-range-days:hover,
+.special-dates-item-range-dates:hover,
+.special-dates-item-category:hover,
+.special-dates-item-date:hover {
+  text-decoration: underline;
+}
+.special-dates-item-repeat:hover {
+  opacity: 0.85;
+}
+
+.special-dates-range-edit-popover {
+  position: fixed;
+  z-index: 10002;
+  background: var(--panel, #fff);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  padding: 10px 12px;
+  min-width: 180px;
+}
+.special-dates-range-edit-popover-inner .range-days-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+.special-dates-range-edit-popover-inner .range-period-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.special-dates-range-edit-popover-inner .range-period-inputs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.special-dates-range-edit-popover-inner .range-period-inputs input,
+.special-dates-range-edit-popover-inner select {
+  font-size: var(--font-size);
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+}
+.special-dates-range-edit-popover-inner select {
+  min-width: 100px;
+}
+.special-dates-range-edit-popover-inner .special-dates-range-edit-apply {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
 }
 
 .memo-color-picker {
@@ -3469,6 +4040,9 @@ header {
   gap: 10px;
   margin-top: 16px;
 }
+#special-dates-modal .modal-actions {
+  margin-top: 8px;
+}
 
 /* 모달 버튼 통일: 반복일정 모달과 동일한 작은 크기, 취소=흰바탕 검정글씨, 그외=연한하늘색 바탕 검정글씨 */
 .modal .btn-primary,
@@ -3528,9 +4102,117 @@ header {
   width: auto;
 }
 
+.range-period-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0;
+}
+.range-period-row label {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.range-period-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.range-period-sep {
+  color: var(--text-muted);
+  font-size: var(--font-size);
+  margin: 0 2px;
+}
+
+.range-days-wrap {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  min-width: 0;
+  overflow-x: auto;
+}
+.range-days-label {
+  font-size: var(--font-size);
+  font-weight: 400;
+  color: var(--text);
+  margin-right: 2px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 1.35;
+  min-height: 1.35em;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-2px);
+}
+.range-day-cb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: var(--font-size);
+  font-weight: 400;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--text);
+  line-height: 1.35;
+  min-height: 1.35em;
+}
+.range-day-cb input {
+  margin: 0;
+  flex-shrink: 0;
+  align-self: center;
+  transform: translateY(2px);
+}
+
+/* 반복일정 모달: 적용 요일 한 줄에 스크롤 없이 (반복 기간과 동일한 폰트 크기·진하기 유지) */
+#special-dates-modal .range-days-wrap {
+  gap: 4px 6px;
+  overflow-x: visible;
+}
+/* 할일 추가/수정 모달: 기간설정 적용 요일 텍스트 조금 올림 */
+#todo-modal .range-days-label {
+  transform: translateY(-2px);
+}
+
+#special-dates-modal .range-days-label {
+  font-size: var(--font-size);
+  font-weight: 400;
+  margin-right: 0;
+  line-height: 1.35;
+  min-height: 1.35em;
+  transform: translateY(-2px);
+}
+#special-dates-modal .range-day-cb {
+  font-size: var(--font-size);
+  font-weight: 400;
+  gap: 1px;
+  line-height: 1.35;
+  min-height: 1.35em;
+}
+#special-dates-modal .range-day-cb input {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  align-self: center;
+}
+
 /* 사이즈를 줄여도 달력은 왼쪽 고정, 가로·세로 스크롤로만 보기 */
 @media (max-width: 768px) {
   .quote-line {
     font-size: 20pt;
   }
+}
+
+/* 반복일정 모달 너비 470px 강제 (파일 끝에서 재선언) */
+#special-dates-modal .modal-content {
+  flex: 0 0 380px !important;
+  width: 380px !important;
+  min-width: 380px !important;
+  max-width: 90vw !important;
+  flex-shrink: 0 !important;
 }
