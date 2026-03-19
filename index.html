@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>나의할일</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='28' height='24' x='2' y='4' fill='none' stroke='%234b5563' stroke-width='2' rx='2'/%3E%3Cline x1='2' y1='10' x2='30' y2='10' stroke='%234b5563' stroke-width='2'/%3E%3Crect width='6' height='6' x='6' y='14' fill='%234b5563' rx='1'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* 반복일정 모달 너비 380px */
+    #special-dates-modal .modal-content,
+    #special-dates-modal-content {
+      flex: 0 0 380px !important;
+      width: 380px !important;
+      min-width: 380px !important;
+      max-width: 90vw !important;
+      flex-shrink: 0 !important;
+      box-sizing: border-box !important;
+    }
+  </style>
+  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.bubble.css" rel="stylesheet">
+</head>
+<body>
+  <!-- 상단: 명언 한 줄 -->
+  <header class="quote-area">
+    <div class="quote-line" contenteditable="true" data-line="0" placeholder="명언을 입력하세요">오늘 할 일을 내일로 미루지 마라.</div>
+  </header>
+
+  <!-- 중간: 3열 (달력 | 할일 | 메모) - 최소 크기 이하에서 스크롤 -->
+  <div class="app-body">
+  <main class="main-three-col">
+    <!-- 왼쪽: 달력 -->
+    <section class="col calendar-col">
+      <div class="panel-title">달  력</div>
+      <div class="calendar-header">
+        <button type="button" class="nav-btn nav-btn-year" id="cal-year-prev" aria-label="이전 년도">〈〈</button>
+        <button type="button" class="nav-btn" id="cal-prev" aria-label="이전 달">〈</button>
+        <span class="cal-month-year" id="cal-month-year">2025년 3월</span>
+        <button type="button" class="nav-btn" id="cal-next" aria-label="다음 달">〉</button>
+        <button type="button" class="nav-btn nav-btn-year" id="cal-year-next" aria-label="다음 년도">〉〉</button>
+        <button type="button" class="nav-btn nav-btn-today" id="cal-today" aria-label="오늘로 이동">오늘</button>
+        <button type="button" class="nav-btn cal-type-toggle-btn" id="cal-type-toggle" aria-label="양력/음력 전환" title="클릭 시 양력↔음력 전환">양력</button>
+        <button type="button" class="nav-btn nav-btn-special-dates btn-calendar-category-edit" id="cal-special-dates-btn" aria-label="설정" title="특정날짜 분류관리"></button>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+      <div class="calendar-memo-wrap">
+        <div id="calendar-memo" class="calendar-memo-editor-inline calendar-memo-contenteditable" contenteditable="true" data-placeholder="달력 아래 메모를 입력하세요"></div>
+      </div>
+    </section>
+
+    <!-- 중간: 할일 / 달력 전체 보기 -->
+    <section class="col todo-col">
+      <div class="panel-title panel-title-todo">
+        <button type="button" class="view-toggle-btn view-toggle-cal" id="view-toggle-cal" title="달력 보기">
+          <span class="view-toggle-arrow view-toggle-arrow--spacer" aria-hidden="true">〈</span>
+          <span class="view-toggle-text">달력 보기</span>
+          <span class="view-toggle-arrow" aria-hidden="true">〉</span>
+        </button>
+        <div class="todo-panel-center" id="todo-panel-center">
+          <div class="calendar-full-header-inline" id="calendar-full-header-inline" style="display:none;">
+            <button type="button" class="nav-btn nav-btn-year" id="cal-full-year-prev" aria-label="이전 년도">〈〈</button>
+            <button type="button" class="nav-btn" id="cal-full-prev" aria-label="이전 달">〈</button>
+            <span class="cal-month-year" id="cal-full-month-year"></span>
+            <button type="button" class="nav-btn" id="cal-full-next" aria-label="다음 달">〉</button>
+            <button type="button" class="nav-btn nav-btn-year" id="cal-full-year-next" aria-label="다음 년도">〉〉</button>
+            <button type="button" class="nav-btn nav-btn-today" id="cal-full-today" aria-label="오늘">오늘</button>
+            <button type="button" class="nav-btn cal-type-toggle-btn" id="cal-full-type-toggle" aria-label="양력/음력 전환" title="클릭 시 양력↔음력 전환">양력</button>
+          </div>
+          <div class="todo-view-header-inline" id="todo-view-header-inline" style="display:none;">
+            <button type="button" class="nav-btn" id="todo-three-col-prev" aria-label="이전 날">〈</button>
+            <span class="todo-view-caption" id="todo-view-caption"></span>
+            <button type="button" class="nav-btn" id="todo-three-col-next" aria-label="다음 날">〉</button>
+            <button type="button" class="nav-btn nav-btn-today" id="todo-three-col-today" aria-label="오늘">오늘</button>
+          </div>
+        </div>
+        <button type="button" class="view-toggle-btn view-toggle-todo" id="view-toggle-todo" title="할일 보기">
+          <span class="view-toggle-arrow" aria-hidden="true">〈</span>
+          <span class="view-toggle-text">할일 보기</span>
+          <span class="view-toggle-arrow view-toggle-arrow--spacer" aria-hidden="true">〉</span>
+        </button>
+      </div>
+      <div class="todo-list-wrap" id="todo-list-wrap">
+        <div class="todo-three-col" id="todo-three-col">
+          <div class="todo-day-col" id="todo-day-col-left" data-date="">
+            <div class="todo-day-header"></div>
+            <div class="todo-day-list">
+              <div class="todo-section section-morning" data-section="morning"><div class="section-header"><span class="section-header-title">오전</span><button type="button" class="section-add-btn btn-icon" data-section="morning" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="morning"></ul></div>
+              <div class="todo-section section-lunch" data-section="lunch"><div class="section-header"><span class="section-header-title">점심</span><button type="button" class="section-add-btn btn-icon" data-section="lunch" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="lunch"></ul></div>
+              <div class="todo-section section-afternoon" data-section="afternoon"><div class="section-header"><span class="section-header-title">오후</span><button type="button" class="section-add-btn btn-icon" data-section="afternoon" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="afternoon"></ul></div>
+              <div class="todo-section section-evening" data-section="evening"><div class="section-header"><span class="section-header-title">저녁</span><button type="button" class="section-add-btn btn-icon" data-section="evening" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="evening"></ul></div>
+              <div class="todo-section section-completed" data-section="completed"><div class="section-header"><span class="section-header-title">완료</span></div><ul class="todo-items" data-section="completed"></ul></div>
+            </div>
+          </div>
+          <div class="todo-day-col todo-day-col-center" id="todo-day-col-center" data-date="">
+            <div class="todo-day-header"></div>
+            <div class="todo-day-list">
+              <div class="todo-section section-morning" data-section="morning"><div class="section-header"><span class="section-header-title">오전</span><button type="button" class="section-add-btn btn-icon" data-section="morning" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="morning"></ul></div>
+              <div class="todo-section section-lunch" data-section="lunch"><div class="section-header"><span class="section-header-title">점심</span><button type="button" class="section-add-btn btn-icon" data-section="lunch" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="lunch"></ul></div>
+              <div class="todo-section section-afternoon" data-section="afternoon"><div class="section-header"><span class="section-header-title">오후</span><button type="button" class="section-add-btn btn-icon" data-section="afternoon" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="afternoon"></ul></div>
+              <div class="todo-section section-evening" data-section="evening"><div class="section-header"><span class="section-header-title">저녁</span><button type="button" class="section-add-btn btn-icon" data-section="evening" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="evening"></ul></div>
+              <div class="todo-section section-completed" data-section="completed"><div class="section-header"><span class="section-header-title">완료</span></div><ul class="todo-items" data-section="completed"></ul></div>
+            </div>
+          </div>
+          <div class="todo-day-col" id="todo-day-col-right" data-date="">
+            <div class="todo-day-header"></div>
+            <div class="todo-day-list">
+              <div class="todo-section section-morning" data-section="morning"><div class="section-header"><span class="section-header-title">오전</span><button type="button" class="section-add-btn btn-icon" data-section="morning" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="morning"></ul></div>
+              <div class="todo-section section-lunch" data-section="lunch"><div class="section-header"><span class="section-header-title">점심</span><button type="button" class="section-add-btn btn-icon" data-section="lunch" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="lunch"></ul></div>
+              <div class="todo-section section-afternoon" data-section="afternoon"><div class="section-header"><span class="section-header-title">오후</span><button type="button" class="section-add-btn btn-icon" data-section="afternoon" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="afternoon"></ul></div>
+              <div class="todo-section section-evening" data-section="evening"><div class="section-header"><span class="section-header-title">저녁</span><button type="button" class="section-add-btn btn-icon" data-section="evening" aria-label="추가">⊕</button></div><ul class="todo-items" data-section="evening"></ul></div>
+              <div class="todo-section section-completed" data-section="completed"><div class="section-header"><span class="section-header-title">완료</span></div><ul class="todo-items" data-section="completed"></ul></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="calendar-full-wrap" id="calendar-full-wrap" style="display:none;">
+        <div class="calendar-full-grid" id="calendar-full-grid"></div>
+      </div>
+    </section>
+
+    <!-- 오른쪽: 메모 (드롭다운으로 분류 선택, 분류명 수정 가능) -->
+    <section class="col memo-col memo-view-all">
+      <div class="panel-title">메  모</div>
+      <div class="memo-tab-bar">
+        <div class="memo-dropdown-wrap">
+          <button type="button" class="nav-btn nav-btn-today" id="memo-view-all-btn" title="전체 보기" aria-label="전체">전체</button>
+          <select id="memo-category-select" class="memo-category-select" title="메모 분류 선택">
+            <option value="">전체</option>
+          </select>
+          <button type="button" class="btn-icon" id="memo-add-next-to-reorder" title="메모 한 줄 추가">⊕</button>
+          <button type="button" class="btn-calendar-category-edit memo-category-edit-in-bar" id="memo-category-edit-btn" title="분류 구성" aria-label="분류 구성">분류 구성</button>
+        </div>
+      </div>
+      <div class="memo-list-wrap">
+        <div class="memo-content-area" id="memo-content-area">
+          <div class="memo-editor" id="memo-editor">
+            <div class="memo-list-body">
+              <div class="memo-incomplete-wrap"><ul class="memo-item-list" id="memo-item-list"></ul></div>
+              <div class="memo-completed-wrap"><ul class="memo-item-list memo-item-list-completed" id="memo-item-list-completed"></ul></div>
+            </div>
+            <div class="memo-item-add-zone" id="memo-item-add-zone" title="클릭하여 메모 추가">⊕</div>
+          </div>
+          <div id="memo-view-all-content" class="memo-all-content"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <!-- 하단 (필요시 푸터) -->
+  <footer class="footer-area"></footer>
+  </div>
+
+  <!-- 반복일정 모달 380px -->
+  <div class="modal" id="special-dates-modal">
+    <div class="modal-content" id="special-dates-modal-content" style="width: 380px; max-width: 90vw;">
+      <h3>반복일정</h3>
+      <div class="special-dates-add">
+        <div class="special-dates-label-row">
+          <input type="text" id="special-date-label" placeholder="명칭" maxlength="20" aria-label="명칭">
+          <span id="special-date-selected-display" class="special-date-selected-display" aria-live="polite"></span>
+        </div>
+        <div class="special-dates-control-row">
+          <select id="special-date-category" aria-label="분류" title="분류">
+            <!-- 메모 분류 목록으로 채움 -->
+          </select>
+          <div class="special-date-input-center-wrap">
+            <input type="date" id="special-date-input" aria-label="시작일">
+            <select id="special-date-repeat" aria-label="반복">
+              <option value="none">반복 없음</option>
+              <option value="daily">매일</option>
+              <option value="weekly">매주</option>
+              <option value="monthly">매월</option>
+              <option value="monthly_last">매월 말일</option>
+              <option value="yearly">매년</option>
+              <option value="range">기간 설정</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group range-group special-dates-range-group" id="special-dates-range-group" hidden>
+          <div class="range-period-row">
+            <label>반복 기간</label>
+            <span class="range-period-inputs"><input type="date" id="special-date-range-start"><span class="range-period-sep"> ~ </span><input type="date" id="special-date-range-end"></span>
+          </div>
+          <div class="range-days-wrap" style="margin-top:8px">
+            <span class="range-days-label">적용 요일</span>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-mon" checked> 월</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-tue" checked> 화</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-wed" checked> 수</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-thu" checked> 목</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-fri" checked> 금</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-sat" checked> 토</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-sun" checked> 일</label>
+            <label class="range-day-cb"><input type="checkbox" id="special-date-range-holiday" checked> 공휴일</label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions" id="special-dates-modal-actions">
+        <button type="button" class="btn-primary btn-small" id="special-date-add-btn">추가</button>
+        <button type="button" class="btn-secondary" id="special-dates-close">닫기</button>
+      </div>
+      <ul class="special-dates-list" id="special-dates-list"></ul>
+    </div>
+  </div>
+
+  <!-- 반복만 설정 모달 (달력 보기용) -->
+  <div class="modal" id="todo-repeat-modal">
+    <div class="modal-content modal-sm">
+      <h3>반복 설정</h3>
+      <div class="form-group">
+        <label>반복</label>
+        <select id="todo-repeat-only">
+          <option value="none">반복 없음</option>
+          <option value="daily">매일</option>
+          <option value="weekly">매주</option>
+          <option value="monthly">매월</option>
+          <option value="monthly_last">매월 말일</option>
+          <option value="range">기간 설정</option>
+        </select>
+      </div>
+      <div class="form-group range-group" id="todo-repeat-only-range-group" style="display:none">
+        <div class="range-period-row">
+          <label>반복 기간</label>
+          <span class="range-period-inputs"><input type="date" id="todo-repeat-only-range-start"><span class="range-period-sep"> ~ </span><input type="date" id="todo-repeat-only-range-end"></span>
+        </div>
+        <div class="range-days-wrap" style="margin-top:8px">
+          <span class="range-days-label">적용 요일</span>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-mon" checked> 월</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-tue" checked> 화</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-wed" checked> 수</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-thu" checked> 목</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-fri" checked> 금</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-sat" checked> 토</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-sun" checked> 일</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-repeat-only-range-holiday" checked> 공휴일</label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="todo-repeat-only-save">확인</button>
+        <button type="button" class="btn-secondary" id="todo-repeat-only-cancel">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 할일 추가/수정 모달 -->
+  <div class="modal" id="todo-modal">
+    <div class="modal-content">
+      <h3 id="todo-modal-title">할일 추가</h3>
+      <div class="form-group">
+        <label>제목</label>
+        <input type="text" id="todo-title" placeholder="제목">
+      </div>
+      <div class="form-group">
+        <label>내용 (한 줄)</label>
+        <input type="text" id="todo-desc" placeholder="내용">
+      </div>
+      <div class="form-group">
+        <label>단락</label>
+        <select id="todo-section">
+          <option value="morning">오전</option>
+          <option value="lunch">점심</option>
+          <option value="afternoon">오후</option>
+          <option value="evening">저녁</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>분류</label>
+        <select id="todo-memo-category" title="분류 필수, 메모 분류와 동일한 색으로 표시">
+        </select>
+      </div>
+      <div class="form-group">
+        <label>반복</label>
+        <select id="todo-repeat">
+          <option value="none">반복 없음</option>
+          <option value="daily">매일</option>
+          <option value="weekly">매주</option>
+          <option value="monthly">매월</option>
+          <option value="monthly_last">매월 말일</option>
+          <option value="range">기간 설정</option>
+        </select>
+      </div>
+      <div class="form-group range-group" id="todo-range-group" style="display:none">
+        <div class="range-period-row">
+          <label>반복 기간</label>
+          <span class="range-period-inputs"><input type="date" id="todo-range-start"><span class="range-period-sep"> ~ </span><input type="date" id="todo-range-end"></span>
+        </div>
+        <div class="range-days-wrap" style="margin-top:8px">
+          <span class="range-days-label">적용 요일</span>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-mon" checked> 월</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-tue" checked> 화</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-wed" checked> 수</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-thu" checked> 목</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-fri" checked> 금</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-sat" checked> 토</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-sun" checked> 일</label>
+          <label class="range-day-cb"><input type="checkbox" id="todo-range-holiday" checked> 공휴일</label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="todo-save">저장</button>
+        <button type="button" class="btn-secondary" id="todo-cancel">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메모 분류 순서 변경 모달 (드래그앤드롭 + 추가/수정/삭제) -->
+  <div class="modal" id="memo-reorder-modal">
+    <div class="modal-content modal-sm">
+      <h3>분류 구성</h3>
+      <ul class="memo-reorder-list" id="memo-reorder-list"></ul>
+      <div class="memo-reorder-footer">
+        <button type="button" class="btn-primary" id="memo-reorder-add" title="분류 추가">추가</button>
+        <button type="button" class="btn-primary" id="memo-reorder-close">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 바탕색 선택 모달 (분류 구성에서 사용) -->
+  <div class="modal" id="memo-color-modal">
+    <div class="modal-content modal-xs">
+      <h3>바탕색 선택</h3>
+      <div class="memo-color-picker" id="memo-color-modal-picker"></div>
+      <div class="modal-actions" style="margin-top:12px">
+        <button type="button" class="btn-secondary" id="memo-color-modal-cancel">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메모 분류 추가/수정 모달 -->
+  <div class="modal" id="memo-tab-modal">
+    <div class="modal-content modal-sm">
+      <h3 id="memo-tab-modal-title">분류 추가</h3>
+      <div class="form-group">
+        <label>분류 이름</label>
+        <input type="text" id="memo-tab-name" placeholder="분류 이름 (예: 기타/참고, 개인)">
+      </div>
+      <div class="form-group">
+        <label>바탕색</label>
+        <div class="memo-color-picker" id="memo-color-picker"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="memo-tab-save">저장</button>
+        <button type="button" class="btn-secondary" id="memo-tab-cancel">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 반복 할일 삭제 확인 모달 -->
+  <div class="modal" id="repeat-delete-modal">
+    <div class="modal-content modal-sm">
+      <h3>반복 할일 삭제</h3>
+      <p>어느 것을 삭제할까요?</p>
+      <div class="form-group">
+        <label>
+          <input type="radio" name="repeat-delete-scope" value="single" checked>
+          이번 일정만 삭제
+        </label>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="radio" name="repeat-delete-scope" value="after">
+          이번 일정 이후 삭제
+        </label>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="radio" name="repeat-delete-scope" value="all">
+          모든 일정 삭제
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="repeat-delete-confirm">삭제</button>
+        <button type="button" class="btn-secondary" id="repeat-delete-cancel">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.js"></script>
+  <script>
+  (function() {
+    if (typeof Quill === 'undefined') return;
+    var sizeList = [];
+    for (var i = 8; i <= 32; i += 2) sizeList.push(i + 'px');
+    try {
+      var Size = Quill.import('attributors/style/size');
+      if (Size) { Size.whitelist = sizeList; Quill.register(Size, true); return; }
+    } catch (e) {}
+    try {
+      var Parchment = Quill.import('parchment');
+      if (Parchment && Parchment.Attributor && Parchment.Attributor.Style) {
+        var SizeStyle = new Parchment.Attributor.Style('size', 'font-size', { scope: Parchment.Scope.INLINE });
+        SizeStyle.whitelist = sizeList;
+        Quill.register(SizeStyle, true);
+      }
+    } catch (e2) {}
+  })();
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
