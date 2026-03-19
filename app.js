@@ -40,7 +40,7 @@
   function getFromStore(key) { return memoryStore[key] ?? null; }
   function setToStore(key, value) { memoryStore[key] = value; syncKeyToFirebase(key, value); }
   const DEFAULT_MEMO_TABS = ['개인', '시타마치', '슈가맨워크', '부동산투자', '인공지능(AI)', '기타'];
-  const MEMO_PASTEL_COLORS = ['#B3E5FC', '#FFF59D', '#C8E6C9', '#F8BBD9', '#B2EBF2', '#E1BEE7', '#FFCC80', '#B2DFDB', '#FFAB91', '#CFD8DC'];
+  const MEMO_PASTEL_COLORS = ['#dceefc', '#fffcc0', '#c8e8c9', '#fcd4df', '#b8ecf3', '#e8ccec', '#ffe9c4', '#b8e3df', '#ffd9cc', '#d4dae0'];
   const MEMO_PASTEL_COLOR_NAMES = ['하늘색', '노란색', '연두색', '분홍색', '청록색', '연보라', '주황색', '민트색', '산호색', '연회색'];
   const SECTION_COLOR_INDEX = { morning: 0, lunch: 1, afternoon: 2, evening: 3 };
 
@@ -77,10 +77,50 @@
     });
   }
 
+  function getMemoTabById(tabId) {
+    if (!tabId || !state.memoTabs || !state.memoTabs.length) return null;
+    return state.memoTabs.find(x => x.id === tabId) || null;
+  }
+
+  /** 종료일이 있고 오늘이 그 다음 날 이후면 true (당일까지는 유효) */
+  function isMemoTabExpired(tab) {
+    if (!tab || !tab.endDate || String(tab.endDate).length < 10) return false;
+    return todayKey() > tab.endDate;
+  }
+
+  /** 오늘이 [시작일, 종료일] 구간 안에 있으면 true. 날짜 미입력은 제한 없음. */
+  function isMemoTabInActivePeriod(tab) {
+    if (!tab || isDeletedTabId(tab.id)) return false;
+    const today = todayKey();
+    if (tab.startDate && String(tab.startDate).length >= 10 && today < tab.startDate) return false;
+    if (tab.endDate && String(tab.endDate).length >= 10 && today > tab.endDate) return false;
+    return true;
+  }
+
+  function isTodoMemoTabActive(todo) {
+    let tid = todo.memoTabId;
+    if (tid === undefined || tid === null || tid === '') tid = getPersonalTabId();
+    if (!tid) return false;
+    const tab = getMemoTabById(tid);
+    if (!tab) return false;
+    return isMemoTabInActivePeriod(tab);
+  }
+
+  function repeatingTodoMemoTabActive(rep) {
+    if (!rep) return false;
+    let tid = rep.memoTabId;
+    if (tid === undefined || tid === null || tid === '') tid = getPersonalTabId();
+    const tab = getMemoTabById(tid);
+    if (!tab) return false;
+    return isMemoTabInActivePeriod(tab);
+  }
+
   function getPersonalTabId() {
     if (!state.memoTabs || !state.memoTabs.length) return null;
-    const personal = state.memoTabs.find(x => x.name === '개인');
-    return personal ? personal.id : (state.memoTabs[0] ? state.memoTabs[0].id : null);
+    const usable = state.memoTabs.filter(t => isMemoTabInActivePeriod(t));
+    if (!usable.length) return null;
+    const personal = usable.find(x => x.name === '개인');
+    return personal ? personal.id : usable[0].id;
   }
 
   function isDeletedTabId(tabId) {
@@ -123,10 +163,12 @@
     repeatDeleteTarget: null,
     completedRepeatingInstances: {},
     viewMode: 'todo',
+    todoViewCenterDate: null,
     calendarFullYear: new Date().getFullYear(),
     calendarFullMonth: new Date().getMonth(),
     specialDates: [],
-    calendarType: 'solar'
+    calendarType: 'solar',
+    memoTabModalRestrictPeriod: false
   };
 
   function dateKey(d) {
@@ -148,7 +190,10 @@
         if (!s.id) s.id = 'sd_legacy_' + i + '_' + Date.now();
         if (!s.repeat) s.repeat = 'none';
         if (s.repeat === 'range' && (s.rangeStart === undefined || s.rangeEnd === undefined)) { s.rangeStart = s.rangeStart || ''; s.rangeEnd = s.rangeEnd || ''; }
-        if (!s.memoTabId && state.memoTabs && state.memoTabs.length) s.memoTabId = getPersonalTabId() || state.memoTabs[0].id;
+        if (!s.memoTabId && state.memoTabs && state.memoTabs.length) {
+          var _pid = getPersonalTabId();
+          if (_pid) s.memoTabId = _pid;
+        }
         if (s.isLunar === undefined) s.isLunar = false;
       });
     } catch (_) {
@@ -294,12 +339,278 @@
     } catch (_) {}
   }
 
+  /** 크기 셀렉트 클릭 시 selection이 풀리므로, 마지막 텍스트 선택 범위를 보관 */
+  var calendarMemoSavedNonCollapsedRange = null;
+
+  function getCalendarMemoSelectionRangeForFormat(editor) {
+    if (!editor) return null;
+    var sel = window.getSelection ? window.getSelection() : null;
+    if (sel && sel.rangeCount > 0) {
+      var r = sel.getRangeAt(0);
+      if (!r.collapsed && editor.contains(r.commonAncestorContainer)) return r.cloneRange();
+    }
+    if (calendarMemoSavedNonCollapsedRange) {
+      try {
+        var r2 = calendarMemoSavedNonCollapsedRange.cloneRange();
+        if (!r2.collapsed && editor.contains(r2.commonAncestorContainer)) return r2;
+    } catch (_) {}
+    }
+    return null;
+  }
+
+  /**
+   * 글자 크기 적용. span 안에 div/ul 등 블록을 넣지 않음(브라우저가 노드를 삭제하는 문제 방지).
+   * 블록은 인라인만 자식일 때만 안쪽 span, 블록 자식이 있으면 요소에 font-size.
+   */
+  function insertCalendarMemoFontSizeNodes(range, n) {
+    var contents = range.extractContents();
+    var tmp = document.createElement('div');
+    tmp.appendChild(contents);
+    if (!tmp.firstChild) return;
+
+    var px = n + 'px';
+    var out = document.createDocumentFragment();
+
+    function hasBlockChild(el) {
+      var ch = el.firstChild;
+      while (ch) {
+        if (ch.nodeType === 1 && /^(DIV|UL|OL|P|LI|H[1-6]|BLOCKQUOTE|PRE|TABLE)$/i.test(ch.tagName)) return true;
+        ch = ch.nextSibling;
+      }
+      return false;
+    }
+
+    function wrapInlineOnlyBlock(el) {
+      var innerSpan = document.createElement('span');
+      innerSpan.style.fontSize = px;
+      while (el.firstChild) innerSpan.appendChild(el.firstChild);
+      el.appendChild(innerSpan);
+    }
+
+    while (tmp.firstChild) {
+      var node = tmp.removeChild(tmp.firstChild);
+      if (node.nodeType === 1 && /^(UL|OL)$/i.test(node.tagName)) {
+        node.style.fontSize = px;
+        out.appendChild(node);
+      } else if (node.nodeType === 1 && /^(DIV|P)$/i.test(node.tagName)) {
+        if (!hasBlockChild(node)) wrapInlineOnlyBlock(node);
+        else node.style.fontSize = px;
+        out.appendChild(node);
+      } else if (node.nodeType === 1 && /^LI$/i.test(node.tagName)) {
+        node.style.fontSize = px;
+        out.appendChild(node);
+      } else if (node.nodeType === 1 && /^(H[1-6]|BLOCKQUOTE|PRE)$/i.test(node.tagName)) {
+        if (!hasBlockChild(node)) wrapInlineOnlyBlock(node);
+        else node.style.fontSize = px;
+        out.appendChild(node);
+      } else {
+        var span = document.createElement('span');
+        span.style.fontSize = px;
+        span.appendChild(node);
+        out.appendChild(span);
+      }
+    }
+    range.insertNode(out);
+  }
+
+  /** 달력 아래 메모 선택 영역에 px 단위 글자 크기 적용 (굵게 등 인라인 서식 유지) */
+  function applyCalendarMemoSelectionFontSize(px) {
+    var editor = document.getElementById('calendar-memo');
+    if (!editor) return;
+    var n = parseInt(px, 10);
+    if (isNaN(n) || n < 8 || n > 40) return;
+    var range = getCalendarMemoSelectionRangeForFormat(editor);
+    if (!range || range.collapsed) return;
+    var holder = document.createElement('div');
+    holder.appendChild(range.cloneContents());
+    var inner = holder.innerHTML;
+    if (!inner || !String(inner).replace(/\s|&nbsp;/g, '')) return;
+    editor.focus();
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    try {
+      sel.addRange(range);
+    } catch (_) {
+      return;
+    }
+    insertCalendarMemoFontSizeNodes(sel.getRangeAt(0), n);
+    calendarMemoSavedNonCollapsedRange = null;
+    saveCalendarMemo();
+  }
+
+  /** 선택 영역에서 글자 크기만 제거(에디터 기본 크기로), DOM 구조 유지 */
+  function resetCalendarMemoSelectionFontSize() {
+    var editor = document.getElementById('calendar-memo');
+    if (!editor) return;
+    var range = getCalendarMemoSelectionRangeForFormat(editor);
+    if (!range || range.collapsed) return;
+    var holder = document.createElement('div');
+    holder.appendChild(range.cloneContents());
+    var inner = holder.innerHTML;
+    if (!inner) return;
+    editor.focus();
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    try {
+      sel.addRange(range);
+      } catch (_) {
+      return;
+    }
+    range = sel.getRangeAt(0);
+    var contents = range.extractContents();
+    holder = document.createElement('div');
+    holder.appendChild(contents);
+    var els = holder.querySelectorAll('*');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.style && el.style.fontSize) el.style.removeProperty('font-size');
+      var st = el.getAttribute('style');
+      if (st !== null && String(st).trim() === '') el.removeAttribute('style');
+      if (el.tagName === 'FONT' && el.hasAttribute('size')) el.removeAttribute('size');
+    }
+    var frag = document.createDocumentFragment();
+    while (holder.firstChild) frag.appendChild(holder.firstChild);
+    range.insertNode(frag);
+    calendarMemoSavedNonCollapsedRange = null;
+    saveCalendarMemo();
+  }
+
+  function getCalendarMemoSelectionToolbar() {
+    var bar = document.getElementById('calendar-memo-selection-toolbar');
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.id = 'calendar-memo-selection-toolbar';
+    bar.className = 'calendar-memo-selection-toolbar';
+    var sizeOpts = '';
+    for (var s = 8; s <= 32; s += 2) {
+      sizeOpts += '<option value="' + s + '">' + s + 'px</option>';
+    }
+    bar.innerHTML = ''
+      + '<span class="calendar-memo-toolbar-item calendar-memo-selection-size-label" data-tooltip="글자 크기(목록에서 px 또는 기본 선택)">'
+      + '<select class="calendar-memo-selection-font-size" id="calendar-memo-selection-font-size" aria-label="글자 크기">'
+      + '<option value="">크기</option>'
+      + '<option value="reset">기본(14px)</option>'
+      + sizeOpts
+      + '</select></span>'
+      + '<span class="calendar-memo-toolbar-item" data-tooltip="굵게"><button type="button" class="calendar-memo-selection-btn" data-cmd="bold" aria-label="굵게"><b>B</b></button></span>'
+      + '<span class="calendar-memo-toolbar-item" data-tooltip="밑줄"><button type="button" class="calendar-memo-selection-btn" data-cmd="underline" aria-label="밑줄"><u>U</u></button></span>'
+      + '<span class="calendar-memo-toolbar-item" data-tooltip="취소선"><button type="button" class="calendar-memo-selection-btn" data-cmd="strikeThrough" aria-label="취소선"><s>S</s></button></span>'
+      + '<span class="calendar-memo-toolbar-item" data-tooltip="글머리 기호 목록"><button type="button" class="calendar-memo-selection-btn" data-cmd="insertUnorderedList" aria-label="글머리 기호">•</button></span>'
+      + '<span class="calendar-memo-toolbar-item" data-tooltip="번호 목록"><button type="button" class="calendar-memo-selection-btn" data-cmd="insertOrderedList" aria-label="번호 목록">1.</button></span>'
+      + '<span class="calendar-memo-toolbar-item" data-tooltip="서식 지우기"><button type="button" class="calendar-memo-selection-btn" data-cmd="removeFormat" aria-label="서식 지우기">Tx</button></span>';
+    document.body.appendChild(bar);
+    bar.addEventListener('mousedown', function (e) {
+      if (e.target.closest('.calendar-memo-selection-font-size') || e.target.closest('.calendar-memo-selection-size-label')) return;
+      e.preventDefault();
+    });
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-cmd]');
+      if (!btn) return;
+      var cmd = btn.getAttribute('data-cmd');
+      if (!cmd) return;
+      try {
+        document.execCommand(cmd, false, null);
+      } catch (_) {}
+      saveCalendarMemo();
+      requestAnimationFrame(updateCalendarMemoSelectionToolbarPosition);
+    });
+    var sizeSel = bar.querySelector('#calendar-memo-selection-font-size');
+    if (sizeSel) {
+      sizeSel.addEventListener('change', function () {
+        var v = this.value;
+        if (v === 'reset') {
+          resetCalendarMemoSelectionFontSize();
+        } else if (v) {
+          applyCalendarMemoSelectionFontSize(v);
+        }
+        this.value = '';
+        requestAnimationFrame(updateCalendarMemoSelectionToolbarPosition);
+      });
+    }
+    return bar;
+  }
+
+  function hideCalendarMemoSelectionToolbar() {
+    var bar = document.getElementById('calendar-memo-selection-toolbar');
+    if (bar) bar.classList.remove('show');
+  }
+
+  function updateCalendarMemoSelectionToolbarPosition() {
+    var editor = document.getElementById('calendar-memo');
+    var bar = document.getElementById('calendar-memo-selection-toolbar');
+    if (!editor || !bar) return;
+    var sel = window.getSelection ? window.getSelection() : null;
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+      hideCalendarMemoSelectionToolbar();
+      return;
+    }
+    var range = sel.getRangeAt(0);
+    var anchorNode = sel.anchorNode;
+    var focusNode = sel.focusNode;
+    if (!anchorNode || !focusNode || !editor.contains(anchorNode) || !editor.contains(focusNode)) {
+      hideCalendarMemoSelectionToolbar();
+      return;
+    }
+    var rect = range.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) {
+      hideCalendarMemoSelectionToolbar();
+      return;
+    }
+    bar.classList.add('show');
+    var margin = 8;
+    var top = rect.top + window.scrollY - bar.offsetHeight - margin;
+    var left = rect.left + window.scrollX + (rect.width / 2) - (bar.offsetWidth / 2);
+    var minLeft = window.scrollX + 8;
+    var maxLeft = window.scrollX + document.documentElement.clientWidth - bar.offsetWidth - 8;
+    if (left < minLeft) left = minLeft;
+    if (left > maxLeft) left = maxLeft;
+    var minTop = window.scrollY + 8;
+    if (top < minTop) top = rect.bottom + window.scrollY + margin;
+    bar.style.left = Math.round(left) + 'px';
+    bar.style.top = Math.round(top) + 'px';
+  }
+
+  function bindCalendarMemoSelectionToolbar() {
+    var editor = document.getElementById('calendar-memo');
+    if (!editor) return;
+    var bar = getCalendarMemoSelectionToolbar();
+    if (!bar || editor.dataset.selectionToolbarBound === '1') return;
+    editor.dataset.selectionToolbarBound = '1';
+    document.addEventListener('selectionchange', function () {
+      var ed = document.getElementById('calendar-memo');
+      var sel = window.getSelection ? window.getSelection() : null;
+      if (ed && sel && sel.rangeCount > 0) {
+        var r = sel.getRangeAt(0);
+        if (!r.collapsed && ed.contains(r.commonAncestorContainer)) {
+          try {
+            calendarMemoSavedNonCollapsedRange = r.cloneRange();
+      } catch (_) {}
+        } else if (r.collapsed && ed.contains(r.commonAncestorContainer)) {
+          calendarMemoSavedNonCollapsedRange = null;
+        }
+      }
+      updateCalendarMemoSelectionToolbarPosition();
+    });
+    editor.addEventListener('keyup', updateCalendarMemoSelectionToolbarPosition);
+    editor.addEventListener('mouseup', updateCalendarMemoSelectionToolbarPosition);
+    editor.addEventListener('blur', function () {
+        setTimeout(function () {
+        updateCalendarMemoSelectionToolbarPosition();
+        }, 0);
+    });
+    window.addEventListener('resize', updateCalendarMemoSelectionToolbarPosition);
+    window.addEventListener('scroll', updateCalendarMemoSelectionToolbarPosition, true);
+  }
+
   function initCalendarMemo() {
     var el = document.getElementById('calendar-memo');
     if (!el || el.querySelector('.ql-container')) return;
+    el.spellcheck = false;
+    el.setAttribute('spellcheck', 'false');
     el.addEventListener('input', saveCalendarMemo);
     el.addEventListener('blur', saveCalendarMemo);
-    window.addEventListener('beforeunload', saveCalendarMemo);
+    bindCalendarMemoSelectionToolbar();
+      window.addEventListener('beforeunload', saveCalendarMemo);
   }
 
   function loadTodos() {
@@ -395,7 +706,7 @@
         list.push({ ...t, id: instanceId, completed: !!state.completedRepeatingInstances[instanceId] });
       }
     });
-    list = list.filter(t => !isDeletedTabId(t.memoTabId));
+    list = list.filter(t => !isDeletedTabId(t.memoTabId) && isTodoMemoTabActive(t));
     const out = { morning: [], lunch: [], afternoon: [], evening: [] };
     list.forEach(t => {
       if (out[t.section]) out[t.section].push(t);
@@ -477,6 +788,12 @@
 
   function addTodoAtKey(key, section, indexInSection, fields) {
     if (!key || !TODO_SECTIONS.includes(section)) return;
+    const tid = fields.memoTabId || getPersonalTabId();
+    const mtab = getMemoTabById(tid);
+    if (!mtab || !isMemoTabInActivePeriod(mtab)) {
+      alert('사용 기간이 아닌 분류에는 일정을 추가할 수 없습니다.');
+      return;
+    }
     if (!state.todos[key]) state.todos[key] = [];
     const id = 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     const newTodo = {
@@ -507,6 +824,7 @@
   }
 
   function convertTodoToMemo(todoKey, todoId, targetTabId, insertIndex) {
+    if (!isMemoTabInActivePeriod(getMemoTabById(targetTabId))) return;
     const list = state.todos[todoKey] || [];
     const isRepeating = /_\d{4}-\d{2}-\d{2}$/.test(String(todoId));
     if (isRepeating) return;
@@ -526,6 +844,7 @@
   }
 
   function convertMemoToTodo(tabId, itemId, targetKey, targetSection, targetIndexInSection) {
+    if (!isMemoTabInActivePeriod(getMemoTabById(tabId))) return;
     const items = ensureMemoItems(tabId);
     const m = items.find(x => x.id === itemId);
     if (!m) return;
@@ -538,6 +857,10 @@
   function addTodoInline(section) {
     const key = dateKey(state.selectedDate);
     if (!key) return;
+    if (!getPersonalTabId()) {
+      alert('사용 가능한 분류가 없습니다. 분류 구성에서 기간(시작·종료일)을 확인하세요.');
+      return;
+    }
     if (!state.todos[key]) state.todos[key] = [];
     const id = 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     const newTodo = {
@@ -559,14 +882,20 @@
     if (state.viewMode === 'calendarFull') renderCalendarFull();
   }
 
-  function updateTodoFields(id, fields) {
-    const key = dateKey(state.selectedDate);
+  function updateTodoFields(id, fields, fromKey) {
+    const key = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
     if (!key) return;
     const isRepeatingInstance = /_\d{4}-\d{2}-\d{2}$/.test(String(id));
     const realId = isRepeatingInstance ? String(id).replace(/_\d{4}-\d{2}-\d{2}$/, '') : id;
     if (!isRepeatingInstance && state.todos[key]) {
       const t = state.todos[key].find(x => x.id === id);
       if (t) {
+        if (!isTodoMemoTabActive(t)) return;
+        if (fields.memoTabId !== undefined) {
+          const nid = fields.memoTabId || getPersonalTabId();
+          const nt = getMemoTabById(nid);
+          if (!nt || !isMemoTabInActivePeriod(nt)) return;
+        }
         if (fields.title !== undefined) t.title = fields.title;
         if (fields.desc !== undefined) t.desc = fields.desc;
         if (fields.memoTabId !== undefined) t.memoTabId = fields.memoTabId || undefined;
@@ -576,6 +905,12 @@
     }
     const r = state.repeatingTodos.find(x => x.id === realId);
     if (r) {
+      if (!repeatingTodoMemoTabActive(r)) return;
+      if (fields.memoTabId !== undefined) {
+        const nid = fields.memoTabId || getPersonalTabId();
+        const nt = getMemoTabById(nid);
+        if (!nt || !isMemoTabInActivePeriod(nt)) return;
+      }
       if (fields.title !== undefined) r.title = fields.title;
       if (fields.desc !== undefined) r.desc = fields.desc;
       if (fields.memoTabId !== undefined) r.memoTabId = fields.memoTabId || undefined;
@@ -586,6 +921,28 @@
   function addOrUpdateTodo(payload) {
     const key = dateKey(state.selectedDate);
     if (!state.todos[key]) state.todos[key] = [];
+    function effectiveMemoTabIdForPayload() {
+      let mid = payload.memoTabId;
+      if (payload.id) {
+        const idx0 = state.todos[key].findIndex(t => t.id === payload.id);
+        if (idx0 >= 0) {
+          const ex = state.todos[key][idx0];
+          if (mid === undefined) mid = ex.memoTabId;
+        } else {
+          const realId = String(payload.id).replace(/_\d{4}-\d{2}-\d{2}$/, '');
+          const rep = state.repeatingTodos.find(r => r.id === realId || r.id === payload.id);
+          if (rep && mid === undefined) mid = rep.memoTabId;
+        }
+      }
+      mid = mid || getPersonalTabId();
+      return mid;
+    }
+    const effMid = effectiveMemoTabIdForPayload();
+    const effTab = getMemoTabById(effMid);
+    if (!effTab || !isMemoTabInActivePeriod(effTab)) {
+      alert('사용 기간이 아닌 분류에는 일정을 추가·수정할 수 없습니다.');
+      return;
+    }
     if (payload.id) {
       const idx = state.todos[key].findIndex(t => t.id === payload.id);
       if (idx >= 0) {
@@ -595,7 +952,7 @@
           const originKey = (state.repeatingTodos[repIdx] && state.repeatingTodos[repIdx].originKey) || key;
           if (repIdx >= 0) {
             state.repeatingTodos[repIdx] = { ...updated, originKey };
-          } else {
+        } else {
             state.repeatingTodos.push({ ...updated, originKey });
           }
           state.todos[key].splice(idx, 1);
@@ -651,14 +1008,15 @@
     if (current === 'blue') return 'red';
     return false;
   }
-  function setTodoImportant(id, important) {
-    const key = dateKey(state.selectedDate);
+  function setTodoImportant(id, important, fromKey) {
+    const key = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
     if (!key) return;
     const isRepeatingInstance = /_\d{4}-\d{2}-\d{2}$/.test(String(id));
     const realId = isRepeatingInstance ? String(id).replace(/_\d{4}-\d{2}-\d{2}$/, '') : id;
     if (!isRepeatingInstance && state.todos[key]) {
       const t = state.todos[key].find(x => x.id === id);
       if (t) {
+        if (!isTodoMemoTabActive(t)) return;
         t.important = important;
         saveTodos();
         renderTodos();
@@ -667,22 +1025,27 @@
     }
     const r = state.repeatingTodos.find(x => x.id === realId);
     if (r) {
+      if (!repeatingTodoMemoTabActive(r)) return;
       r.important = important;
       saveRepeating();
       renderTodos();
     }
   }
 
-  function setTodoCompleted(id, completed) {
-    const key = dateKey(state.selectedDate);
+  function setTodoCompleted(id, completed, fromKey) {
+    const key = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
     const isRepeatingInstance = /_\d{4}-\d{2}-\d{2}$/.test(String(id));
     if (isRepeatingInstance) {
+      const realId = String(id).replace(/_\d{4}-\d{2}-\d{2}$/, '');
+      const r = state.repeatingTodos.find(x => x.id === realId);
+      if (!repeatingTodoMemoTabActive(r)) return;
       if (completed) state.completedRepeatingInstances[id] = true;
       else delete state.completedRepeatingInstances[id];
       saveCompletedRepeating();
     } else if (key && state.todos[key]) {
       const t = state.todos[key].find(x => x.id === id);
       if (t) {
+        if (!isTodoMemoTabActive(t)) return;
         t.completed = !!completed;
         saveTodos();
       }
@@ -714,11 +1077,15 @@
     const realId = isRepeatingInstance ? String(id).replace(/_\d{4}-\d{2}-\d{2}$/, '') : id;
 
     if (isRepeatingInstance) {
+      const rep = state.repeatingTodos.find(r => r.id === realId);
+      if (!repeatingTodoMemoTabActive(rep)) {
+        alert('사용 기간이 지난 분류의 일정은 삭제할 수 없습니다.');
+        return;
+      }
       if (scope === 'single') {
         state.completedRepeatingInstances[id] = true;
         saveCompletedRepeating();
       } else if (scope === 'after') {
-        const rep = state.repeatingTodos.find(r => r.id === realId);
         if (rep) {
           const cur = new Date(key);
           const end = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - 1);
@@ -729,14 +1096,19 @@
           }
         }
       } else {
-        state.repeatingTodos = state.repeatingTodos.filter(r => r.id !== realId);
-        saveRepeating();
+      state.repeatingTodos = state.repeatingTodos.filter(r => r.id !== realId);
+      saveRepeating();
         Object.keys(state.completedRepeatingInstances).forEach(k => {
           if (k.startsWith(realId + '_')) delete state.completedRepeatingInstances[k];
         });
         saveCompletedRepeating();
-      }
+    }
     } else if (key && state.todos[key]) {
+      const td = state.todos[key].find(x => x.id === id);
+      if (td && !isTodoMemoTabActive(td)) {
+        alert('사용 기간이 지난 분류의 일정은 삭제할 수 없습니다.');
+        return;
+      }
       state.todos[key] = state.todos[key].filter(t => t.id !== id);
       saveTodos();
     }
@@ -749,6 +1121,12 @@
     const key = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
     const isRepeatingInstance = /_\d{4}-\d{2}-\d{2}$/.test(String(id));
     if (isRepeatingInstance) {
+      const realId = String(id).replace(/_\d{4}-\d{2}-\d{2}$/, '');
+      const rep = state.repeatingTodos.find(r => r.id === realId);
+      if (!repeatingTodoMemoTabActive(rep)) {
+        alert('사용 기간이 지난 분류의 일정은 삭제할 수 없습니다.');
+        return;
+      }
       openRepeatDeleteModal(id, key);
       return;
     }
@@ -773,16 +1151,22 @@
     let dayCount = 0;
     let nextMonthDay = 0;
     const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
+    const weekCount = Math.max(4, Math.round(totalCells / 7)); // 4~6주 중 실제 표시 주차 수
+    // calendar-grid 높이가 고정이면 memo 에디터 높이가 같이 고정됩니다.
+    // 주차 수에 맞게 calendar-grid 높이를 조절해 memo 에디터가 유동적으로 늘/줄어들게 합니다.
+    const baseGridHeight = 260; // 기존 CSS 기본값에 맞춘 기준 높이
+    grid.style.height = `${Math.round(baseGridHeight * (weekCount / 6))}px`;
+    grid.style.gridTemplateRows = `auto repeat(${weekCount}, minmax(0, 1fr))`;
     function hasTodosOnDate(dkey) {
-      const list = (state.todos[dkey] || []).filter(t => !isDeletedTabId(t.memoTabId));
-      const repCount = state.repeatingTodos.filter(r => repeatingAppliesToDate(r, dkey) && !isDeletedTabId(r.memoTabId)).length;
+      const list = (state.todos[dkey] || []).filter(t => !isDeletedTabId(t.memoTabId) && isTodoMemoTabActive(t));
+      const repCount = state.repeatingTodos.filter(r => repeatingAppliesToDate(r, dkey) && !isDeletedTabId(r.memoTabId) && repeatingTodoMemoTabActive(r)).length;
       return list.length + repCount > 0;
     }
     function setCellContent(cell, num, dkey) {
       const holidayName = getHolidayName(dkey);
       const specialLabels = getSpecialDateLabels(dkey);
       const specialCount = Math.min(specialLabels.length, 3);
-      const repeatCount = holidayName ? 0 : state.repeatingTodos.filter(function (r) { return repeatingAppliesToDate(r, dkey) && !isDeletedTabId(r.memoTabId); }).length;
+      const repeatCount = holidayName ? 0 : state.repeatingTodos.filter(function (r) { return repeatingAppliesToDate(r, dkey) && !isDeletedTabId(r.memoTabId) && repeatingTodoMemoTabActive(r); }).length;
       const repeatDotsCount = Math.min(repeatCount, 3);
       var above = specialCount > 0 ? '<span class="cal-day-dots cal-day-dots-special" aria-hidden="true">' + '\u2022'.repeat(specialCount) + '</span>' : '';
       var below = '';
@@ -840,6 +1224,7 @@
 
   function setSelectedDate(d) {
     state.selectedDate = d;
+    if (state.viewMode === 'todo') state.todoViewCenterDate = d;
     renderCalendar();
     const el = document.getElementById('selected-date');
     if (el) el.textContent = d ? dateKey(d) : '';
@@ -925,10 +1310,10 @@
       const sectionOrder = ['morning', 'lunch', 'afternoon', 'evening'];
       const todosAll = sectionOrder.flatMap(s => (bySection[s] || []).filter(t => !t.completed));
       const repeatingFirst = todosAll.slice().sort((a, b) => {
-        const ar = !!(a.repeat && a.repeat !== 'none');
-        const br = !!(b.repeat && b.repeat !== 'none');
-        return (br ? 1 : 0) - (ar ? 1 : 0);
-      });
+          const ar = !!(a.repeat && a.repeat !== 'none');
+          const br = !!(b.repeat && b.repeat !== 'none');
+          return (br ? 1 : 0) - (ar ? 1 : 0);
+        });
       if (ul && repeatingFirst.length > 0) {
         repeatingFirst.forEach((t, idx) => {
           const section = t.section || 'morning';
@@ -945,7 +1330,7 @@
           li.dataset.important = t.important || '0';
           const realId = String(t.id).includes('_') ? String(t.id).split('_').slice(0, -1).join('_') : t.id;
           li.dataset.realId = realId;
-          const title = (t.title || '제목 없음').slice(0, 18) + ((t.title || '').length > 18 ? '…' : '');
+          const title = (t.title || '제목').slice(0, 18) + ((t.title || '').length > 18 ? '…' : '');
           const emptyTitleCls = !(t.title && t.title.trim()) ? ' cal-full-todo-title-empty' : '';
           const importantIcon = (t.important === 'blue' || t.important === 'red') ? '★' : '☆';
           const repeatIcon = (t.repeat && t.repeat !== 'none') ? '↻' : '↺';
@@ -1027,6 +1412,8 @@
     li.dataset.section = section;
     li.dataset.index = String(idx);
     li.dataset.realId = String(t.id).includes('_') ? t.id.split('_').slice(0, -1).join('_') : t.id;
+    if (opts.dateKey) li.dataset.dateKey = opts.dateKey;
+    const fromKey = opts.dateKey || li.dataset.dateKey;
     const repeatBtn = document.createElement('button');
     repeatBtn.type = 'button';
     repeatBtn.className = 'todo-repeat-toggle' + (t.repeat && t.repeat !== 'none' ? ' is-active' : '');
@@ -1067,13 +1454,15 @@
     categorySelect.title = '분류(분류관리)';
     categorySelect.draggable = false;
     (state.memoTabs || []).forEach(tab => {
+      if (!isMemoTabInActivePeriod(tab)) return;
       const opt = document.createElement('option');
       opt.value = tab.id;
       opt.textContent = tab.name || '(이름 없음)';
       if (tab.id === (t.memoTabId || getPersonalTabId() || '')) opt.selected = true;
       categorySelect.appendChild(opt);
     });
-    if (!(state.memoTabs && state.memoTabs.length)) categorySelect.disabled = true;
+    const anyActiveMemoTab = state.memoTabs && state.memoTabs.some(function (x) { return isMemoTabInActivePeriod(x); });
+    categorySelect.disabled = !(state.memoTabs && state.memoTabs.length) || !anyActiveMemoTab;
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'todo-delete';
@@ -1100,7 +1489,7 @@ delBtn.title = '삭제';
     ul.appendChild(li);
 
     function saveTodoFields() {
-      updateTodoFields(t.id, { title: titleInput.value.trim(), desc: descInput.value.trim() });
+      updateTodoFields(t.id, { title: titleInput.value.trim(), desc: descInput.value.trim() }, fromKey);
     }
     titleInput.addEventListener('change', saveTodoFields);
     titleInput.addEventListener('blur', saveTodoFields);
@@ -1112,54 +1501,95 @@ delBtn.title = '삭제';
     descInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
     });
-    delBtn.addEventListener('click', () => {
-      deleteTodo(t.id);
+    delBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // 3열(어제/오늘/내일)에서 클릭한 항목만 정확히 지우기 위해,
+      // 해당 li가 가진 dateKey(fromKey)를 deleteTodo에 전달한다.
+      const fromKey = li.dataset.dateKey || opts.dateKey;
+      deleteTodo(t.id, fromKey);
     });
     repeatBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openRepeatOnlyModal(repeatBtn.dataset.realId);
+      openRepeatOnlyModal(repeatBtn.dataset.realId, fromKey);
     });
     completeBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setTodoCompleted(t.id, !completed);
+      setTodoCompleted(t.id, !completed, fromKey);
     });
     categorySelect.addEventListener('change', function () {
       const val = this.value || undefined;
-      updateTodoFields(t.id, { memoTabId: val });
+      updateTodoFields(t.id, { memoTabId: val }, fromKey);
       renderTodos();
       if (state.viewMode === 'calendarFull') renderCalendarFull();
     });
   }
 
-  function renderTodos() {
-    const key = state.selectedDate ? dateKey(state.selectedDate) : null;
-    const wrap = document.getElementById('todo-list-wrap');
-    if (wrap) { if (key) wrap.dataset.date = key; else delete wrap.dataset.date; }
-    const bySection = key ? getTodosForDate(key) : { morning: [], lunch: [], afternoon: [], evening: [] };
+  function getTodoDayHeaderText(key) {
+    if (!key || key.length < 10) return '';
+    const d = new Date(key);
+    if (isNaN(d.getTime())) return key;
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    const wd = weekdays[d.getDay()];
+    const holidayName = getHolidayName(key);
+    const specialLabels = getSpecialDateLabels(key);
+    let text = (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + wd + ')';
+    if (holidayName) text += ' 【 ' + holidayName + ' 】';
+    if (specialLabels.length > 0) text += ' ' + specialLabels.join(', ');
+    return text;
+  }
 
-    ['morning', 'lunch', 'afternoon', 'evening'].forEach(section => {
-      const ul = document.querySelector(`.todo-items[data-section="${section}"]`);
+  function renderTodos() {
+    if (state.viewMode !== 'todo') return;
+    const centerDate = state.todoViewCenterDate || new Date();
+    state.todoViewCenterDate = centerDate;
+    state.selectedDate = centerDate;
+    const centerKey = dateKey(centerDate);
+    const leftDate = new Date(centerDate.getTime() - 86400000);
+    const rightDate = new Date(centerDate.getTime() + 86400000);
+    const leftKey = dateKey(leftDate);
+    const rightKey = dateKey(rightDate);
+    const cols = [
+      { id: 'todo-day-col-left', key: leftKey, header: getTodoDayHeaderText(leftKey) },
+      { id: 'todo-day-col-center', key: centerKey, header: getTodoDayHeaderText(centerKey) },
+      { id: 'todo-day-col-right', key: rightKey, header: getTodoDayHeaderText(rightKey) }
+    ];
+    cols.forEach(function (col) {
+      const colEl = document.getElementById(col.id);
+      if (!colEl) return;
+      colEl.dataset.date = col.key;
+      colEl.classList.remove('todo-day-sat', 'todo-day-sun', 'todo-day-holiday');
+      const d = new Date(col.key);
+      if (isNaN(d.getTime())) { /* no date class */ } else {
+        const isHoliday = !!getHolidayName(col.key);
+        if (isHoliday) colEl.classList.add('todo-day-holiday');
+        else if (d.getDay() === 6) colEl.classList.add('todo-day-sat');
+        else if (d.getDay() === 0) colEl.classList.add('todo-day-sun');
+      }
+      const headerEl = colEl.querySelector('.todo-day-header');
+      if (headerEl) headerEl.textContent = col.header;
+      const bySection = getTodosForDate(col.key);
+      ['morning', 'lunch', 'afternoon', 'evening'].forEach(function (section) {
+        const ul = colEl.querySelector('.todo-items[data-section="' + section + '"]');
       if (!ul) return;
       ul.innerHTML = '';
-      const items = bySection[section] || [];
-      items.forEach((t, idx) => {
+        (bySection[section] || []).forEach(function (t, idx) {
         if (t.completed) return;
-        renderTodoItem(ul, t, section, idx, {});
+          renderTodoItem(ul, t, section, idx, { dateKey: col.key });
       });
     });
-
-    const completedUl = document.querySelector('.todo-items[data-section="completed"]');
+      const completedUl = colEl.querySelector('.todo-items[data-section="completed"]');
     if (completedUl) {
       completedUl.innerHTML = '';
       const sectionOrder = ['morning', 'lunch', 'afternoon', 'evening'];
-      const completedItems = sectionOrder.flatMap(section => (bySection[section] || []).filter(t => t.completed));
-      completedItems.forEach((t, idx) => {
-        renderTodoItem(completedUl, t, t.section, idx, { noDrag: true });
-      });
-    }
-
+        const completedItems = sectionOrder.flatMap(function (s) { return (bySection[s] || []).filter(function (t) { return t.completed; }); });
+        completedItems.forEach(function (t, idx) {
+          renderTodoItem(completedUl, t, t.section, idx, { noDrag: true, dateKey: col.key });
+        });
+      }
+    });
     initTodoButtons();
   }
 
@@ -1190,7 +1620,7 @@ delBtn.title = '삭제';
       const insertAbove = e.clientY < rect.top + rect.height / 2;
       overItem.classList.toggle('drag-over-top', insertAbove);
       overItem.classList.toggle('drag-over-bottom', !insertAbove);
-      const key = overItem.dataset.dateKey || state.selectedDate ? dateKey(state.selectedDate) : null;
+      const key = overItem.dataset.dateKey || (state.selectedDate ? dateKey(state.selectedDate) : null);
       state.todoDropTarget = { el: overItem, insertAbove, section: overItem.dataset.section, index: parseInt(overItem.dataset.index, 10), key };
     } else if (overUl) {
       const key = (overUl.closest && overUl.closest('[data-date]') && overUl.closest('[data-date]').dataset.date) || (state.selectedDate ? dateKey(state.selectedDate) : null);
@@ -1301,7 +1731,7 @@ delBtn.title = '삭제';
   function updateMemoReorderDropLine(e) {
     if (!state.draggingMemoReorder) return;
     const els = document.elementsFromPoint(e.clientX, e.clientY);
-    const other = els.find(el => el.classList && el.classList.contains('memo-reorder-item') && !el.classList.contains('memo-reorder-dragging'));
+    const other = els.find(el => el.classList && el.classList.contains('memo-reorder-item') && !el.classList.contains('memo-reorder-dragging') && !el.classList.contains('memo-reorder-item-expired') && !el.classList.contains('memo-reorder-item-deleted'));
     document.querySelectorAll('.memo-reorder-item').forEach(el => el.classList.remove('memo-reorder-over-top', 'memo-reorder-over-bottom'));
     if (!other) return;
     const rect = other.getBoundingClientRect();
@@ -1320,7 +1750,9 @@ delBtn.title = '삭제';
         const id = btn.dataset.id;
         const current = btn.dataset.important === 'false' ? false : btn.dataset.important;
         const next = nextImportant(current);
-        setTodoImportant(id, next);
+        const li = btn.closest('.todo-item');
+        const fromKey = li && li.dataset ? (li.dataset.dateKey || undefined) : undefined;
+        setTodoImportant(id, next, fromKey);
       });
     });
   }
@@ -1334,6 +1766,7 @@ delBtn.title = '삭제';
     if (categorySelect) {
       categorySelect.innerHTML = '';
       (state.memoTabs || []).forEach(tab => {
+        if (!isMemoTabInActivePeriod(tab)) return;
         const opt = document.createElement('option');
         opt.value = tab.id;
         opt.textContent = tab.name;
@@ -1357,7 +1790,11 @@ delBtn.title = '삭제';
         document.getElementById('todo-range-end').value = t.rangeEnd || '';
         const rd = t.rangeDays || { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true, holiday: true };
         ['mon','tue','wed','thu','fri','sat','sun','holiday'].forEach(function (d) { var el = document.getElementById('todo-range-' + (d === 'holiday' ? 'holiday' : d)); if (el) el.checked = !!rd[d === 'holiday' ? 'holiday' : d]; });
-        if (categorySelect) categorySelect.value = t.memoTabId || getPersonalTabId() || '';
+        if (categorySelect) {
+          const want = t.memoTabId || getPersonalTabId() || '';
+          const hasOpt = Array.from(categorySelect.options).some(function (o) { return o.value === want; });
+          categorySelect.value = hasOpt ? want : (getPersonalTabId() || '');
+        }
         if (t.repeat === 'range') document.getElementById('todo-range-group').style.display = 'block';
       } else {
         state.editingTodoId = null;
@@ -1371,7 +1808,7 @@ delBtn.title = '삭제';
       document.getElementById('todo-range-start').value = '';
       document.getElementById('todo-range-end').value = '';
       ['mon','tue','wed','thu','fri','sat','sun','holiday'].forEach(function (d) { var el = document.getElementById('todo-range-' + (d === 'holiday' ? 'holiday' : d)); if (el) el.checked = true; });
-      if (categorySelect) categorySelect.value = getPersonalTabId() || (state.memoTabs[0] ? state.memoTabs[0].id : '');
+      if (categorySelect) categorySelect.value = getPersonalTabId() || '';
     }
     modal.classList.add('show');
   }
@@ -1394,6 +1831,11 @@ delBtn.title = '삭제';
     const rangeEnd = document.getElementById('todo-range-end').value;
     const memoTabIdEl = document.getElementById('todo-memo-category');
     const memoTabId = (memoTabIdEl && memoTabIdEl.value) ? memoTabIdEl.value : (getPersonalTabId() || '');
+    const catTab = getMemoTabById(memoTabId);
+    if (!catTab || !isMemoTabInActivePeriod(catTab)) {
+      alert('사용 기간이 아닌 분류는 선택할 수 없습니다.');
+      return;
+    }
 
     if (!title) {
       alert('제목을 입력하세요.');
@@ -1433,9 +1875,11 @@ delBtn.title = '삭제';
   document.getElementById('todo-cancel').addEventListener('click', closeTodoModal);
 
   let editingTodoIdForRepeat = null;
-  function openRepeatOnlyModal(realId) {
+  let editingTodoKeyForRepeat = null;
+  function openRepeatOnlyModal(realId, fromKey) {
     editingTodoIdForRepeat = realId;
-    const key = dateKey(state.selectedDate);
+    const key = fromKey || dateKey(state.selectedDate);
+    editingTodoKeyForRepeat = key;
     let t = null;
     if (key && state.todos[key]) t = state.todos[key].find(x => x.id === realId);
     if (!t && realId) t = state.repeatingTodos.find(x => x.id === realId);
@@ -1458,16 +1902,19 @@ delBtn.title = '삭제';
   function closeRepeatOnlyModal() {
     document.getElementById('todo-repeat-modal').classList.remove('show');
     editingTodoIdForRepeat = null;
+    editingTodoKeyForRepeat = null;
   }
   document.getElementById('todo-repeat-only').addEventListener('change', () => {
     document.getElementById('todo-repeat-only-range-group').style.display =
       document.getElementById('todo-repeat-only').value === 'range' ? 'block' : 'none';
   });
   document.getElementById('todo-repeat-only-save').addEventListener('click', () => {
-    if (!editingTodoIdForRepeat || !state.selectedDate) {
+    if (!editingTodoIdForRepeat || !editingTodoKeyForRepeat) {
       closeRepeatOnlyModal();
       return;
     }
+    const prevSelectedDate = state.selectedDate;
+    state.selectedDate = parseLocalDate(editingTodoKeyForRepeat) || prevSelectedDate;
     const repeat = document.getElementById('todo-repeat-only').value;
     const rangeStart = document.getElementById('todo-repeat-only-range-start').value;
     const rangeEnd = document.getElementById('todo-repeat-only-range-end').value;
@@ -1489,6 +1936,7 @@ delBtn.title = '삭제';
       rangeDays
     });
     closeRepeatOnlyModal();
+    state.selectedDate = prevSelectedDate;
     if (state.viewMode === 'calendarFull') renderCalendarFull();
     renderTodos();
   });
@@ -1501,15 +1949,17 @@ delBtn.title = '삭제';
       state.memoTabs = parsed.map((t, i) => {
         const tab = typeof t === 'string' ? { id: 'tab_' + i, name: t } : { id: t.id || 'tab_' + i, name: t.name || '' };
         const colorIndex = typeof t === 'object' && typeof t.colorIndex === 'number' && t.colorIndex >= 0 && t.colorIndex <= 9 ? t.colorIndex : i % 10;
-        return { ...tab, colorIndex };
+        const startDate = typeof t === 'object' && t.startDate ? String(t.startDate).slice(0, 10) : '';
+        const endDate = typeof t === 'object' && t.endDate ? String(t.endDate).slice(0, 10) : '';
+        return { ...tab, colorIndex, startDate, endDate };
       }).filter(t => t.name);
-      if (!state.memoTabs.length) state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 10 }));
+      if (!state.memoTabs.length) state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 10, startDate: '', endDate: '' }));
     } catch (_) {
-      state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 10 }));
+      state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 10, startDate: '', endDate: '' }));
     }
     if (!state.memoTabs.some(t => t.name === '개인')) {
       const idx = state.memoTabs.length;
-      state.memoTabs.push({ id: 'tab_' + idx, name: '개인', colorIndex: idx % 10 });
+      state.memoTabs.push({ id: 'tab_' + idx, name: '개인', colorIndex: idx % 10, startDate: '', endDate: '' });
     }
     try {
       const rawDeleted = getFromStore(STORAGE_DELETED_MEMO_TABS);
@@ -1517,7 +1967,9 @@ delBtn.title = '삭제';
       state.deletedMemoTabs = Array.isArray(parsedDeleted) ? parsedDeleted.map((t, i) => {
         const tab = typeof t === 'string' ? { id: 'tab_del_' + i, name: t } : { id: t.id || 'tab_del_' + i, name: t.name || '' };
         const colorIndex = typeof t === 'object' && typeof t.colorIndex === 'number' && t.colorIndex >= 0 && t.colorIndex <= 9 ? t.colorIndex : 0;
-        return { ...tab, colorIndex };
+        const startDate = typeof t === 'object' && t.startDate ? String(t.startDate).slice(0, 10) : '';
+        const endDate = typeof t === 'object' && t.endDate ? String(t.endDate).slice(0, 10) : '';
+        return { ...tab, colorIndex, startDate, endDate };
       }).filter(t => t.name) : [];
     } catch (_) {
       state.deletedMemoTabs = [];
@@ -1533,6 +1985,7 @@ delBtn.title = '삭제';
     if (!listEl) return;
     listEl.innerHTML = '';
     (state.memoTabs || []).forEach(tab => {
+      if (!isMemoTabInActivePeriod(tab)) return;
       const item = document.createElement('div');
       item.className = 'calendar-category-item';
       const idx = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9 ? tab.colorIndex : 0;
@@ -1594,6 +2047,45 @@ delBtn.title = '삭제';
     setToStore(STORAGE_MEMOS, JSON.stringify(state.memos));
   }
 
+  /** 메모 본문 textarea: 스크롤 없이 전체 줄이 보이도록 높이 자동 조절 */
+  function adjustMemoItemContentHeight(ta) {
+    if (!ta || ta.tagName !== 'TEXTAREA') return;
+    ta.style.overflowY = 'hidden';
+    ta.style.height = '0';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+
+  function bindMemoItemContentAutosize(ta) {
+    function onInput() {
+      adjustMemoItemContentHeight(ta);
+    }
+    ta.addEventListener('input', onInput);
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(onInput);
+        } else {
+          setTimeout(onInput, 0);
+        }
+      }
+    });
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(onInput);
+    } else {
+      setTimeout(onInput, 0);
+    }
+  }
+
+  (function setupMemoContentResizeReflow() {
+    var memoResizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (memoResizeTimer) clearTimeout(memoResizeTimer);
+      memoResizeTimer = setTimeout(function () {
+        document.querySelectorAll('textarea.memo-item-content').forEach(adjustMemoItemContentHeight);
+      }, 150);
+    });
+  })();
+
   function ensureMemoItems(tabId) {
     if (!state.memos[tabId] || !Array.isArray(state.memos[tabId])) {
       state.memos[tabId] = [];
@@ -1601,7 +2093,25 @@ delBtn.title = '삭제';
     return state.memos[tabId];
   }
 
+  function getAllCompletedMemoCount() {
+    var n = 0;
+    (state.memoTabs || []).forEach(function (tab) {
+      if (!isMemoTabInActivePeriod(tab)) return;
+      ensureMemoItems(tab.id).forEach(function (m) {
+        if (m && m.completed) n += 1;
+      });
+    });
+    return n;
+  }
+
+  function updateMemoCompletedTotalFooter() {
+    var el = document.getElementById('memo-completed-total-btn');
+    if (el) el.textContent = '완료 전체 ' + getAllCompletedMemoCount();
+  }
+
   function setMemoItemImportant(tabId, itemId, important) {
+    const tab = getMemoTabById(tabId);
+    if (!tab || !isMemoTabInActivePeriod(tab)) return;
     const items = state.memos[tabId];
     if (!items) return;
     const m = items.find(x => x.id === itemId);
@@ -1617,16 +2127,114 @@ delBtn.title = '삭제';
     return [...items].sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
   }
 
+  function fillMemoCompletedModalCategorySelect(selectedTabId) {
+    const select = document.getElementById('memo-completed-modal-category');
+    if (!select) return;
+    select.innerHTML = '';
+    (state.memoTabs || []).forEach(function (tab) {
+      if (!isMemoTabInActivePeriod(tab)) return;
+      const completedCount = ensureMemoItems(tab.id).reduce(function (acc, m) {
+        return acc + (m && m.completed ? 1 : 0);
+      }, 0);
+      const opt = document.createElement('option');
+      opt.value = tab.id;
+      opt.textContent = completedCount > 0 ? (tab.name + ' ' + completedCount) : tab.name;
+      select.appendChild(opt);
+    });
+    const want = selectedTabId && getMemoTabById(selectedTabId) && isMemoTabInActivePeriod(getMemoTabById(selectedTabId))
+      ? String(selectedTabId)
+      : '';
+    if (want && Array.prototype.some.call(select.options, function (o) { return o.value === want; })) {
+      select.value = want;
+    } else if (select.options.length) {
+      select.selectedIndex = 0;
+    }
+  }
+
+  function renderMemoCompletedModalList(tabId) {
+    const modal = document.getElementById('memo-completed-modal');
+    const listEl = document.getElementById('memo-completed-modal-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (!tabId) {
+      const empty = document.createElement('p');
+      empty.className = 'memo-completed-modal-empty';
+      empty.textContent = '선택할 분류가 없습니다.';
+      listEl.appendChild(empty);
+      return;
+    }
+    const tab = getMemoTabById(tabId);
+    if (!tab || !isMemoTabInActivePeriod(tab)) {
+      const empty = document.createElement('p');
+      empty.className = 'memo-completed-modal-empty';
+      empty.textContent = '완료된 메모가 없습니다.';
+      listEl.appendChild(empty);
+      return;
+    }
+    if (modal) modal.dataset.memoTabId = String(tabId);
+    const completed = sortMemoItemsCompletedLast(ensureMemoItems(tabId)).filter(function (m) { return m.completed; });
+    completed.forEach(function (m) {
+      const card = document.createElement('div');
+      card.className = 'memo-completed-modal-item';
+      const head = document.createElement('div');
+      head.className = 'memo-completed-modal-item-head';
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'memo-completed-modal-title-text';
+      titleDiv.textContent = (m.title && String(m.title).trim()) ? m.title : '(제목 없음)';
+      const unBtn = document.createElement('button');
+      unBtn.type = 'button';
+      unBtn.className = 'memo-completed-modal-uncomplete';
+      unBtn.textContent = '미완료';
+      unBtn.dataset.tabId = String(tabId);
+      unBtn.dataset.itemId = String(m.id);
+      unBtn.title = '다시 미완료 목록으로';
+      head.appendChild(titleDiv);
+      head.appendChild(unBtn);
+      const body = document.createElement('div');
+      body.className = 'memo-completed-modal-body';
+      body.textContent = m.content || '';
+      card.appendChild(head);
+      card.appendChild(body);
+      listEl.appendChild(card);
+    });
+    if (!completed.length) {
+      const empty = document.createElement('p');
+      empty.className = 'memo-completed-modal-empty';
+      empty.textContent = '완료된 메모가 없습니다.';
+      listEl.appendChild(empty);
+    }
+  }
+
+  function openMemoCompletedModal(tabId) {
+    const modal = document.getElementById('memo-completed-modal');
+    const select = document.getElementById('memo-completed-modal-category');
+    if (!modal) return;
+    fillMemoCompletedModalCategorySelect(tabId);
+    const effectiveTabId = (select && select.value) ? select.value : tabId;
+    modal.classList.add('show');
+    renderMemoCompletedModalList(effectiveTabId);
+  }
+
+  function closeMemoCompletedModal() {
+    const modal = document.getElementById('memo-completed-modal');
+    if (modal) modal.classList.remove('show');
+  }
+
   function renderMemoTabs() {
     const select = document.getElementById('memo-category-select');
     if (!select) return;
-    const currentValue = state.viewAllMemos ? '' : (state.activeMemoTabId || (state.memoTabs[0] ? state.memoTabs[0].id : ''));
+    const firstActive = state.memoTabs.find(t => isMemoTabInActivePeriod(t));
+    let currentValue = state.viewAllMemos ? '' : (state.activeMemoTabId || (firstActive ? firstActive.id : ''));
+    if (currentValue && !isMemoTabInActivePeriod(getMemoTabById(currentValue))) {
+      currentValue = firstActive ? firstActive.id : '';
+    }
     select.innerHTML = '';
     const optEmpty = document.createElement('option');
     optEmpty.value = '';
     optEmpty.textContent = '전체';
     select.appendChild(optEmpty);
     state.memoTabs.forEach(tab => {
+      if (!isMemoTabInActivePeriod(tab)) return;
       const opt = document.createElement('option');
       opt.value = tab.id;
       opt.textContent = tab.name;
@@ -1643,6 +2251,11 @@ delBtn.title = '삭제';
       state.activeMemoTabId = null;
       document.querySelector('.memo-col').classList.add('memo-view-all');
     } else {
+      const selTab = getMemoTabById(tabId);
+      if (!isMemoTabInActivePeriod(selTab)) {
+        alert('사용 기간이 아닌 분류는 선택할 수 없습니다.');
+        return;
+      }
       state.viewAllMemos = false;
       state.activeMemoTabId = tabId;
       document.querySelector('.memo-col').classList.remove('memo-view-all');
@@ -1654,8 +2267,10 @@ delBtn.title = '삭제';
   }
 
   function setMemoItemCompleted(tabId, itemId, completed) {
+    const tab = getMemoTabById(tabId);
+    if (!tab || !isMemoTabInActivePeriod(tab)) return;
     const items = ensureMemoItems(tabId).slice();
-    const idx = items.findIndex(m => m.id === itemId);
+    const idx = items.findIndex(m => m.id === itemId || String(m.id) === String(itemId));
     if (idx < 0) return;
     const item = items[idx];
     item.completed = completed;
@@ -1667,7 +2282,7 @@ delBtn.title = '삭제';
 
   function showMemoContent() {
     /* 선택된 분류가 없거나 유효하지 않으면 전체 보기 */
-    const hasValidSelection = state.activeMemoTabId && state.memoTabs.some(t => t.id === state.activeMemoTabId);
+    const hasValidSelection = state.activeMemoTabId && state.memoTabs.some(t => t.id === state.activeMemoTabId && isMemoTabInActivePeriod(t));
     if (!hasValidSelection) {
       state.viewAllMemos = true;
       state.activeMemoTabId = null;
@@ -1680,6 +2295,7 @@ delBtn.title = '삭제';
       allContent.style.display = 'block';
       allContent.innerHTML = '';
       state.memoTabs.forEach((tab, catIndex) => {
+        if (!isMemoTabInActivePeriod(tab)) return;
         const allItems = ensureMemoItems(tab.id);
         const incompleteItems = allItems.filter(m => !m.completed);
         const completedItems = allItems.filter(m => m.completed);
@@ -1764,7 +2380,7 @@ delBtn.title = '삭제';
             contentInput.className = 'memo-item-content';
             contentInput.placeholder = '내용';
             contentInput.value = m.content || '';
-            contentInput.rows = 2;
+            contentInput.rows = 1;
             contentInput.dataset.tabId = tab.id;
             contentInput.dataset.itemId = m.id;
             contentInput.draggable = false;
@@ -1799,9 +2415,7 @@ delBtn.title = '삭제';
             });
             contentInput.addEventListener('change', saveMemoFieldsAll);
             contentInput.addEventListener('blur', saveMemoFieldsAll);
-            contentInput.addEventListener('keydown', function (e) {
-              if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
-            });
+            bindMemoItemContentAutosize(contentInput);
             delBtn.addEventListener('click', function (e) {
               e.preventDefault();
               e.stopPropagation();
@@ -1871,6 +2485,17 @@ delBtn.title = '삭제';
             });
           });
           contentWrap.appendChild(listEl);
+        }
+        if (completedItems.length > 0) {
+          const allCompletedBtn = document.createElement('button');
+          allCompletedBtn.type = 'button';
+          allCompletedBtn.className = 'memo-all-completed-count-btn';
+          allCompletedBtn.textContent = '완료 ' + completedItems.length;
+          allCompletedBtn.setAttribute('aria-label', '완료된 메모 보기');
+          allCompletedBtn.addEventListener('click', function () {
+            openMemoCompletedModal(tab.id);
+          });
+          contentWrap.appendChild(allCompletedBtn);
         }
         block.appendChild(contentWrap);
         allContent.appendChild(block);
@@ -1952,6 +2577,7 @@ delBtn.title = '삭제';
           });
         });
       })();
+      updateMemoCompletedTotalFooter();
       return;
     }
     if (allContent) allContent.style.display = 'none';
@@ -1977,19 +2603,42 @@ delBtn.title = '삭제';
       editor.classList.add('active');
       renderMemoItemList(state.activeMemoTabId);
     }
+    updateMemoCompletedTotalFooter();
   }
 
   function renderMemoItemList(tabId) {
     const listEl = document.getElementById('memo-item-list');
-    const completedEl = document.getElementById('memo-item-list-completed');
+    const countBtn = document.getElementById('memo-completed-count-btn');
     if (!listEl) return;
-    const items = sortMemoItemsCompletedLast(ensureMemoItems(tabId));
+    const tabMeta = getMemoTabById(tabId);
+    if (!tabMeta || !isMemoTabInActivePeriod(tabMeta)) {
     listEl.innerHTML = '';
-    if (completedEl) completedEl.innerHTML = '';
-    items.forEach((m, index) => {
-      const targetList = m.completed && completedEl ? completedEl : listEl;
+      if (countBtn) {
+        countBtn.hidden = true;
+        countBtn.textContent = '완료 0';
+      }
+      updateMemoCompletedTotalFooter();
+      return;
+    }
+    const sorted = sortMemoItemsCompletedLast(ensureMemoItems(tabId));
+    const incompleteItems = sorted.filter(m => !m.completed);
+    const completedItems = sorted.filter(m => m.completed);
+    listEl.innerHTML = '';
+    if (countBtn) {
+      if (completedItems.length === 0) {
+        countBtn.hidden = true;
+        countBtn.textContent = '완료 0';
+      } else {
+        countBtn.hidden = false;
+        countBtn.textContent = '완료 ' + completedItems.length;
+        countBtn.onclick = function () {
+          openMemoCompletedModal(tabId);
+        };
+      }
+    }
+    incompleteItems.forEach((m, index) => {
       const li = document.createElement('li');
-      li.className = 'memo-item-row' + (m.completed ? ' memo-item-completed' : '') + (m.important === 'blue' ? ' memo-item-important-blue' : m.important === 'red' ? ' memo-item-important-red' : '');
+      li.className = 'memo-item-row' + (m.important === 'blue' ? ' memo-item-important-blue' : m.important === 'red' ? ' memo-item-important-red' : '');
       li.draggable = true;
       li.dataset.itemId = String(m.id);
       li.dataset.index = String(index);
@@ -2037,12 +2686,12 @@ delBtn.title = '삭제';
       contentInput.className = 'memo-item-content';
       contentInput.placeholder = '내용';
       contentInput.value = m.content || '';
-      contentInput.rows = 2;
+      contentInput.rows = 1;
       contentInput.draggable = false;
       body.appendChild(titleRow);
       body.appendChild(contentInput);
       li.appendChild(body);
-      targetList.appendChild(li);
+      listEl.appendChild(li);
 
       importantBtn.addEventListener('click', function (e) {
         e.preventDefault();
@@ -2094,9 +2743,7 @@ delBtn.title = '삭제';
       });
       contentInput.addEventListener('change', saveMemoFields);
       contentInput.addEventListener('blur', saveMemoFields);
-      contentInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
-      });
+      bindMemoItemContentAutosize(contentInput);
       delBtn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -2135,10 +2782,12 @@ delBtn.title = '삭제';
         reorderMemoItems(tabId, fromIndex, toIndexAfterRemove);
       });
     });
+    updateMemoCompletedTotalFooter();
   }
 
   function deleteMemoItem(tabId, itemId) {
     if (tabId == null || itemId == null) return;
+    if (!isMemoTabInActivePeriod(getMemoTabById(tabId))) return;
     const items = ensureMemoItems(tabId);
     const itemIdStr = String(itemId);
     const idx = items.findIndex(m => m != null && (m.id === itemId || String(m.id) === itemIdStr));
@@ -2151,6 +2800,7 @@ delBtn.title = '삭제';
   }
 
   function moveMemoItemToTab(sourceTabId, itemId, targetTabId, insertIndex) {
+    if (!isMemoTabInActivePeriod(getMemoTabById(sourceTabId)) || !isMemoTabInActivePeriod(getMemoTabById(targetTabId))) return;
     if (sourceTabId === targetTabId) return;
     const srcItems = ensureMemoItems(sourceTabId).slice();
     const itemIndex = srcItems.findIndex(m => m.id === itemId);
@@ -2169,6 +2819,7 @@ delBtn.title = '삭제';
   }
 
   function reorderMemoItems(tabId, fromIndex, toIndex) {
+    if (!isMemoTabInActivePeriod(getMemoTabById(tabId))) return;
     const items = ensureMemoItems(tabId).slice();
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return;
     const [moved] = items.splice(fromIndex, 1);
@@ -2180,6 +2831,10 @@ delBtn.title = '삭제';
   }
 
   function addMemoItem(tabId) {
+    if (!isMemoTabInActivePeriod(getMemoTabById(tabId))) {
+      alert('사용 기간이 아닌 분류에는 메모를 추가할 수 없습니다.');
+      return;
+    }
     const items = ensureMemoItems(tabId);
     const id = 'mi_' + Date.now();
     const completedItems = items.filter(m => m.completed);
@@ -2189,18 +2844,42 @@ delBtn.title = '삭제';
     renderMemoItemList(tabId);
   }
 
-  function openMemoTabModal(editId) {
+  function openMemoTabModal(editId, modalOpts) {
+    modalOpts = modalOpts || {};
+    state.memoTabModalRestrictPeriod = !!modalOpts.restrictPeriodOnly;
     state.editingMemoTabId = editId || null;
-    document.getElementById('memo-tab-modal-title').textContent = editId ? '분류명 수정' : '분류 추가';
+    const titleEl = document.getElementById('memo-tab-modal-title');
     const input = document.getElementById('memo-tab-name');
+    const startEl = document.getElementById('memo-tab-start');
+    const endEl = document.getElementById('memo-tab-end');
+    const colorGroup = document.getElementById('memo-tab-color-group');
+    const periodGroup = document.getElementById('memo-tab-period-group');
+    if (state.memoTabModalRestrictPeriod) {
+      titleEl.textContent = '기간 연장';
+    } else {
+      titleEl.textContent = editId ? '분류 수정' : '분류 추가';
+    }
     const pickerEl = document.getElementById('memo-color-picker');
     if (editId) {
       const t = state.memoTabs.find(x => x.id === editId);
       input.value = t ? t.name : '';
       state.editingMemoTabColorIndex = t && typeof t.colorIndex === 'number' ? t.colorIndex : 0;
+      if (startEl) startEl.value = (t && t.startDate) ? String(t.startDate).slice(0, 10) : '';
+      if (endEl) endEl.value = (t && t.endDate) ? String(t.endDate).slice(0, 10) : '';
     } else {
       input.value = '';
       state.editingMemoTabColorIndex = (state.memoTabs.length) % 10;
+      if (startEl) startEl.value = '';
+      if (endEl) endEl.value = '';
+    }
+    if (state.memoTabModalRestrictPeriod) {
+      input.readOnly = true;
+      if (colorGroup) colorGroup.style.display = 'none';
+      if (periodGroup) periodGroup.style.display = '';
+    } else {
+      input.readOnly = false;
+      if (colorGroup) colorGroup.style.display = '';
+      if (periodGroup) periodGroup.style.display = '';
     }
     if (pickerEl) {
       pickerEl.innerHTML = '';
@@ -2225,6 +2904,11 @@ delBtn.title = '삭제';
   function closeMemoTabModal() {
     document.getElementById('memo-tab-modal').classList.remove('show');
     state.editingMemoTabId = null;
+    state.memoTabModalRestrictPeriod = false;
+    const input = document.getElementById('memo-tab-name');
+    if (input) input.readOnly = false;
+    const colorGroup = document.getElementById('memo-tab-color-group');
+    if (colorGroup) colorGroup.style.display = '';
   }
 
   function openMemoReorderModal() {
@@ -2234,6 +2918,8 @@ delBtn.title = '삭제';
   }
 
   function openMemoColorModal(tabId) {
+    const tabPre = state.memoTabs.find(t => t.id === tabId);
+    if (!tabPre || isMemoTabExpired(tabPre)) return;
     state.editingMemoTabIdForColor = tabId;
     const pickerEl = document.getElementById('memo-color-modal-picker');
     if (pickerEl) {
@@ -2271,8 +2957,10 @@ delBtn.title = '삭제';
   function refreshMemoReorderList() {
     const listEl = document.getElementById('memo-reorder-list');
     if (!listEl) return;
+    const parent = listEl.parentNode;
+    const footer = parent && parent.querySelector ? parent.querySelector('.memo-reorder-footer') : null;
     listEl.innerHTML = '';
-    state.memoTabs.forEach(tab => {
+    state.memoTabs.filter(function (t) { return !isMemoTabExpired(t); }).forEach(function (tab) {
       const li = document.createElement('li');
       li.className = 'memo-reorder-item';
       li.dataset.tabId = tab.id;
@@ -2285,6 +2973,16 @@ delBtn.title = '삭제';
       nameSpan.contentEditable = 'true';
       nameSpan.textContent = tab.name;
       nameSpan.title = '클릭하여 분류명 직접 수정';
+      const periodBtn = document.createElement('button');
+      periodBtn.type = 'button';
+      periodBtn.className = 'memo-reorder-period-btn';
+      periodBtn.title = '시작·종료일';
+      periodBtn.setAttribute('aria-label', '사용 기간');
+      const periodIcon = document.createElement('span');
+      periodIcon.className = 'memo-reorder-period-icon';
+      periodIcon.setAttribute('aria-hidden', 'true');
+      periodIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+      periodBtn.appendChild(periodIcon);
       const colorBtn = document.createElement('button');
       colorBtn.type = 'button';
       colorBtn.className = 'memo-reorder-color-btn';
@@ -2297,10 +2995,17 @@ delBtn.title = '삭제';
       delBtn.title = '분류 삭제';
       delBtn.textContent = '';
       li.appendChild(nameSpan);
+      li.appendChild(periodBtn);
       li.appendChild(colorBtn);
       li.appendChild(delBtn);
       listEl.appendChild(li);
 
+      periodBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        state.fromReorderModal = true;
+        openMemoTabModal(tab.id);
+      });
       nameSpan.addEventListener('blur', () => {
         const next = nameSpan.textContent.trim();
         if (next && next !== tab.name) {
@@ -2323,7 +3028,13 @@ delBtn.title = '삭제';
         e.stopPropagation();
         if (!confirm(`"${tab.name}" 분류를 삭제할까요? 삭제된 분류는 아래에서 취소하거나 완전 삭제할 수 있습니다.`)) return;
         state.memoTabs = state.memoTabs.filter(t => t.id !== tab.id);
-        state.deletedMemoTabs = state.deletedMemoTabs.concat([{ id: tab.id, name: tab.name, colorIndex: typeof tab.colorIndex === 'number' ? tab.colorIndex : 0 }]);
+        state.deletedMemoTabs = state.deletedMemoTabs.concat([{
+          id: tab.id,
+          name: tab.name,
+          colorIndex: typeof tab.colorIndex === 'number' ? tab.colorIndex : 0,
+          startDate: tab.startDate || '',
+          endDate: tab.endDate || ''
+        }]);
         if (state.activeMemoTabId === tab.id) {
           state.activeMemoTabId = null;
           state.viewAllMemos = true;
@@ -2336,7 +3047,47 @@ delBtn.title = '삭제';
       });
     });
 
-    const parent = listEl.parentNode;
+    const expSec = document.getElementById('memo-reorder-expired-section');
+    const expList = document.getElementById('memo-reorder-expired-list');
+    if (expList) expList.innerHTML = '';
+    var expiredTabs = state.memoTabs.filter(isMemoTabExpired);
+    if (expSec) {
+      if (!expiredTabs.length) expSec.hidden = true;
+      else {
+        expSec.hidden = false;
+        expiredTabs.forEach(function (tab) {
+          var eli = document.createElement('li');
+          eli.className = 'memo-reorder-item memo-reorder-item-expired';
+          eli.dataset.tabId = tab.id;
+          eli.draggable = false;
+          var nspan = document.createElement('span');
+          nspan.className = 'memo-reorder-name';
+          nspan.contentEditable = 'false';
+          nspan.textContent = tab.name || '(이름 없음)';
+          var meta = document.createElement('span');
+          meta.className = 'memo-reorder-expired-meta';
+          var sd = (tab.startDate && String(tab.startDate).length >= 10) ? tab.startDate : '\u2014';
+          var ed = (tab.endDate && String(tab.endDate).length >= 10) ? tab.endDate : '\u2014';
+          meta.textContent = sd + ' ~ ' + ed;
+          var extendBtn = document.createElement('button');
+          extendBtn.type = 'button';
+          extendBtn.className = 'btn-secondary memo-reorder-extend-btn';
+          extendBtn.textContent = '기간 연장';
+          extendBtn.title = '종료일을 연장하면 다시 일정·메모에서 사용할 수 있습니다';
+          extendBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            state.fromReorderModal = true;
+            openMemoTabModal(tab.id, { restrictPeriodOnly: true });
+          });
+          eli.appendChild(nspan);
+          eli.appendChild(meta);
+          eli.appendChild(extendBtn);
+          expList.appendChild(eli);
+        });
+      }
+    }
+
     const prevDeleted = parent.querySelector('.memo-reorder-deleted-wrap');
     if (prevDeleted) prevDeleted.remove();
     if (state.deletedMemoTabs && state.deletedMemoTabs.length > 0) {
@@ -2381,7 +3132,13 @@ delBtn.title = '삭제';
           e.preventDefault();
           e.stopPropagation();
           state.deletedMemoTabs = state.deletedMemoTabs.filter(t => t.id !== tab.id);
-          state.memoTabs = state.memoTabs.concat([{ id: tab.id, name: tab.name, colorIndex: tab.colorIndex }]);
+          state.memoTabs = state.memoTabs.concat([{
+            id: tab.id,
+            name: tab.name,
+            colorIndex: tab.colorIndex,
+            startDate: tab.startDate || '',
+            endDate: tab.endDate || ''
+          }]);
           saveMemoTabs();
           saveDeletedMemoTabs();
           refreshMemoReorderList();
@@ -2400,7 +3157,8 @@ delBtn.title = '삭제';
         });
       });
       deletedWrap.appendChild(deletedList);
-      parent.insertBefore(deletedWrap, listEl.nextElementSibling);
+      if (footer) parent.insertBefore(deletedWrap, footer);
+      else parent.appendChild(deletedWrap);
     }
 
     initMemoReorderDragDrop(listEl);
@@ -2410,7 +3168,7 @@ delBtn.title = '삭제';
     const items = listEl.querySelectorAll('.memo-reorder-item');
     items.forEach((item, index) => {
       item.addEventListener('dragstart', e => {
-        if (e.target.closest('.memo-reorder-name') || e.target.closest('.memo-reorder-color-btn') || e.target.closest('.btn-icon')) return;
+        if (e.target.closest('.memo-reorder-name') || e.target.closest('.memo-reorder-color-btn') || e.target.closest('.memo-reorder-period-btn') || e.target.closest('.btn-icon')) return;
         state.draggingMemoReorder = true;
         state.memoReorderDropTarget = null;
         item.classList.add('memo-reorder-dragging');
@@ -2450,7 +3208,9 @@ delBtn.title = '삭제';
         const [movedId] = idOrder.splice(fromIndex, 1);
         const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
         idOrder.splice(insertIndex, 0, movedId);
-        state.memoTabs = idOrder.map(id => state.memoTabs.find(t => t.id === id)).filter(Boolean);
+        const newActiveOrder = idOrder.map(id => state.memoTabs.find(t => t.id === id)).filter(Boolean);
+        const expiredOrdered = state.memoTabs.filter(isMemoTabExpired);
+        state.memoTabs = newActiveOrder.concat(expiredOrdered);
         saveMemoTabs();
         refreshMemoReorderList();
       });
@@ -2480,7 +3240,7 @@ delBtn.title = '삭제';
   if (memoAddNextToReorder) {
     memoAddNextToReorder.addEventListener('click', () => {
       const select = document.getElementById('memo-category-select');
-      const tabId = (select && select.value) || state.activeMemoTabId || (state.memoTabs[0] && state.memoTabs[0].id);
+      const tabId = (select && select.value) || state.activeMemoTabId || getPersonalTabId();
       if (tabId) {
         if (state.viewAllMemos) {
           state.viewAllMemos = false;
@@ -2510,26 +3270,111 @@ delBtn.title = '삭제';
 
   document.getElementById('memo-color-modal-cancel').addEventListener('click', closeMemoColorModal);
 
+  (function setupMemoCompletedModal() {
+    const modal = document.getElementById('memo-completed-modal');
+    const closeBtn = document.getElementById('memo-completed-modal-close');
+    const listEl = document.getElementById('memo-completed-modal-list');
+    const catSelect = document.getElementById('memo-completed-modal-category');
+    if (closeBtn) closeBtn.addEventListener('click', closeMemoCompletedModal);
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeMemoCompletedModal();
+      });
+    }
+    if (catSelect) {
+      catSelect.addEventListener('change', function () {
+        renderMemoCompletedModalList(this.value);
+      });
+    }
+    var totalBtn = document.getElementById('memo-completed-total-btn');
+    if (totalBtn) {
+      totalBtn.addEventListener('click', function () {
+        var tabs = state.memoTabs || [];
+        var id = state.activeMemoTabId;
+        if (!id || !getMemoTabById(id) || !isMemoTabInActivePeriod(getMemoTabById(id))) {
+          var first = tabs.find(function (t) { return isMemoTabInActivePeriod(t); });
+          id = first ? first.id : null;
+        }
+        if (id) openMemoCompletedModal(id);
+      });
+    }
+    if (listEl) {
+      listEl.addEventListener('click', function (e) {
+        const btn = e.target.closest('.memo-completed-modal-uncomplete');
+        if (!btn) return;
+        e.preventDefault();
+        const tid = btn.dataset.tabId;
+        const iid = btn.dataset.itemId;
+        if (tid == null || iid == null) return;
+        setMemoItemCompleted(tid, iid, false);
+        if (state.viewAllMemos) showMemoContent();
+        else if (state.activeMemoTabId === tid) renderMemoItemList(tid);
+        const sel = document.getElementById('memo-completed-modal-category');
+        if (sel && sel.value) {
+          fillMemoCompletedModalCategorySelect(sel.value);
+          renderMemoCompletedModalList(sel.value);
+        }
+      });
+    }
+  })();
+
   document.getElementById('memo-tab-save').addEventListener('click', () => {
+    const startEl = document.getElementById('memo-tab-start');
+    const endEl = document.getElementById('memo-tab-end');
+    const startDate = (startEl && startEl.value) ? startEl.value.trim().slice(0, 10) : '';
+    const endDate = (endEl && endEl.value) ? endEl.value.trim().slice(0, 10) : '';
+    if (startDate && endDate && startDate > endDate) {
+      alert('시작일은 종료일과 같거나 이전이어야 합니다.');
+      return;
+    }
+    if (state.memoTabModalRestrictPeriod && state.editingMemoTabId) {
+      const t = state.memoTabs.find(x => x.id === state.editingMemoTabId);
+      if (t) {
+        t.startDate = startDate;
+        t.endDate = endDate;
+      }
+      saveMemoTabs();
+      closeMemoTabModal();
+      if (state.fromReorderModal) {
+        refreshMemoReorderList();
+        initMemoReorderDragDrop(document.getElementById('memo-reorder-list'));
+      }
+      renderMemoTabs();
+      showMemoContent();
+      renderCategoryManageList();
+      if (state.viewMode === 'calendarFull') renderCalendarFull();
+      renderTodos();
+      renderCalendar();
+      return;
+    }
     const name = document.getElementById('memo-tab-name').value.trim();
     if (!name) { alert('분류 이름을 입력하세요.'); return; }
     const colorIndex = typeof state.editingMemoTabColorIndex === 'number' ? state.editingMemoTabColorIndex : 0;
     if (state.editingMemoTabId) {
       const t = state.memoTabs.find(x => x.id === state.editingMemoTabId);
-      if (t) { t.name = name; t.colorIndex = colorIndex; }
+      if (t) {
+        t.name = name;
+        t.colorIndex = colorIndex;
+        t.startDate = startDate;
+        t.endDate = endDate;
+      }
     } else {
-      state.memoTabs.push({ id: 'tab_' + Date.now(), name, colorIndex });
+      state.memoTabs.push({ id: 'tab_' + Date.now(), name, colorIndex, startDate, endDate });
       state.activeMemoTabId = state.memoTabs[state.memoTabs.length - 1].id;
     }
     saveMemoTabs();
     closeMemoTabModal();
     if (state.fromReorderModal) {
       refreshMemoReorderList();
+      initMemoReorderDragDrop(document.getElementById('memo-reorder-list'));
     } else {
       renderMemoTabs();
       showMemoContent();
     }
     renderCategoryManageList();
+    if (state.viewMode === 'calendarFull') renderCalendarFull();
+    renderTodos();
+    renderCalendar();
   });
   document.getElementById('memo-tab-cancel').addEventListener('click', () => {
     closeMemoTabModal();
@@ -2565,7 +3410,7 @@ delBtn.title = '삭제';
 
   const memoAddTopBtn = document.getElementById('memo-add-top-btn');
   if (memoAddTopBtn) memoAddTopBtn.addEventListener('click', () => {
-    const tabId = state.activeMemoTabId || getPersonalTabId() || (state.memoTabs[0] && state.memoTabs[0].id);
+    const tabId = state.activeMemoTabId || getPersonalTabId();
     if (tabId) {
       if (!state.activeMemoTabId) {
         state.viewAllMemos = false;
@@ -2640,12 +3485,14 @@ delBtn.title = '삭제';
       if (state.memoTabs && state.memoTabs.length) {
         state.memoTabs.forEach(function (tab) {
           if (isDeletedTabId(tab.id)) return;
+          if (!isMemoTabInActivePeriod(tab)) return;
           var opt = document.createElement('option');
           opt.value = tab.id;
           opt.textContent = tab.name || '(이름 없음)';
           categoryEl.appendChild(opt);
         });
-        categoryEl.value = getPersonalTabId() || (state.memoTabs[0] ? state.memoTabs[0].id : '');
+        var firstAct = state.memoTabs.find(function (t) { return isMemoTabInActivePeriod(t); });
+        categoryEl.value = getPersonalTabId() || (firstAct ? firstAct.id : '');
       } else {
         var defaultOpt = document.createElement('option');
         defaultOpt.value = '';
@@ -2703,9 +3550,11 @@ delBtn.title = '삭제';
       return ((REPEAT_ORDER[ra] ?? 9) - (REPEAT_ORDER[rb] ?? 9));
     });
     list.forEach(function (s) {
+      var tabForRow = state.memoTabs && s.memoTabId ? state.memoTabs.find(function (t) { return t.id === s.memoTabId; }) : null;
+      if (s.memoTabId && (!tabForRow || !isMemoTabInActivePeriod(tabForRow))) return;
       const li = document.createElement('li');
       li.className = 'special-dates-item';
-      var tab = state.memoTabs && s.memoTabId ? state.memoTabs.find(function (t) { return t.id === s.memoTabId; }) : null;
+      var tab = tabForRow;
       var categoryName = (tab && tab.name) ? tab.name : '(분류 없음)';
       var repeatType = (s.repeat && s.repeat !== 'none') ? s.repeat : 'none';
       var repeatDisplay = { none: '없음', daily: '매일', weekly: '매주', monthly: '매월', monthly_last: '매월 말일', yearly: '매년', range: '기간' };
@@ -2786,7 +3635,13 @@ delBtn.title = '삭제';
       const rangeEndEl = document.getElementById('special-date-range-end');
       const dateVal = dateInput && dateInput.value ? dateInput.value.trim() : (state.selectedDate ? dateKey(state.selectedDate) : '');
       const labelVal = labelInput && labelInput.value ? labelInput.value.trim() : '';
-      const memoTabId = (categoryEl && categoryEl.value) ? categoryEl.value : (getPersonalTabId() || (state.memoTabs && state.memoTabs[0] ? state.memoTabs[0].id : ''));
+      var firstActiveCat = (state.memoTabs || []).find(function (t) { return isMemoTabInActivePeriod(t); });
+      const memoTabId = (categoryEl && categoryEl.value) ? categoryEl.value : (getPersonalTabId() || (firstActiveCat ? firstActiveCat.id : ''));
+      const tabForAdd = getMemoTabById(memoTabId);
+      if (!tabForAdd || !isMemoTabInActivePeriod(tabForAdd)) {
+        alert('사용 기간이 아닌 분류에는 이름날을 등록할 수 없습니다.');
+        return;
+      }
       const repeatVal = (repeatEl && repeatEl.value) ? repeatEl.value : 'none';
       let rangeStartVal = (repeatVal === 'range' && rangeStartEl && rangeStartEl.value) ? rangeStartEl.value.trim() : '';
       let rangeEndVal = (repeatVal === 'range' && rangeEndEl && rangeEndEl.value) ? rangeEndEl.value.trim() : '';
@@ -2935,7 +3790,7 @@ delBtn.title = '삭제';
         closeSpecialDatesRangePopover();
       });
     } else if (type === 'category') {
-      var tabs = (state.memoTabs || []).filter(function (t) { return !isDeletedTabId(t.id); });
+      var tabs = (state.memoTabs || []).filter(function (t) { return !isDeletedTabId(t.id) && isMemoTabInActivePeriod(t); });
       var currentId = item.memoTabId || getPersonalTabId() || (tabs[0] && tabs[0].id) || '';
       var opts = tabs.map(function (t) {
         var sel = t.id === currentId ? ' selected' : '';
@@ -3084,7 +3939,6 @@ delBtn.title = '삭제';
     });
   });
 
-  const todoListEl = document.getElementById('todo-list');
   const todoListWrap = document.getElementById('todo-list-wrap');
   if (todoListWrap) {
     todoListWrap.addEventListener('dragover', e => {
@@ -3099,19 +3953,20 @@ delBtn.title = '삭제';
   const viewToggleCal = document.getElementById('view-toggle-cal');
   const viewToggleTodo = document.getElementById('view-toggle-todo');
   const calendarFullHeaderInline = document.getElementById('calendar-full-header-inline');
+  const todoViewHeaderInline = document.getElementById('todo-view-header-inline');
   const todoViewCaptionEl = document.getElementById('todo-view-caption');
 
   function updateTodoViewCaption() {
     if (!calendarFullHeaderInline || !todoViewCaptionEl) return;
     if (state.viewMode === 'calendarFull') {
       calendarFullHeaderInline.style.display = 'flex';
-      todoViewCaptionEl.style.display = 'none';
+      if (todoViewHeaderInline) todoViewHeaderInline.style.display = 'none';
       const y = state.calendarFullYear, m = state.calendarFullMonth;
       const monthYearEl = document.getElementById('cal-full-month-year');
       if (monthYearEl) monthYearEl.textContent = y + '년 ' + (m + 1) + '월';
     } else {
       calendarFullHeaderInline.style.display = 'none';
-      todoViewCaptionEl.style.display = '';
+      if (todoViewHeaderInline) todoViewHeaderInline.style.display = 'flex';
       if (state.selectedDate) {
         const d = state.selectedDate;
         const key = dateKey(d);
@@ -3132,25 +3987,8 @@ delBtn.title = '삭제';
             return '<span class="caption-special-date-name">' + (l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')) + '</span>';
           }).join(' / ') + '</span>';
         }
-        var repeatLine = '';
-        const bySection = getTodosForDate(key);
-        const repeating = ['morning', 'lunch', 'afternoon', 'evening'].flatMap(function (s) {
-          return (bySection[s] || []).filter(function (t) { return t.repeat && t.repeat !== 'none'; });
-        });
-        if (repeating.length > 0) {
-          repeatLine = '<div class="caption-repeat-line">' + repeating.map(function (t) {
-            const section = t.section || 'morning';
-            const colorIdx = getTodoColorIndex(t, section);
-            const title = (t.title || '').trim().slice(0, 24) + ((t.title || '').length > 24 ? '…' : '');
-            const safe = (title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            return '<span class="caption-repeat-item caption-repeat-bg-' + colorIdx + '">' + safe + '</span>';
-          }).join(' ') + '</div>';
-          todoViewCaptionEl.classList.add('has-caption-repeat');
-        } else {
-          todoViewCaptionEl.classList.remove('has-caption-repeat');
-        }
-        todoViewCaptionEl.innerHTML = '<div class="caption-first-line">' + firstLine + '</div>' + repeatLine;
-        todoViewCaptionEl.classList.remove('caption-sat', 'caption-sun-holiday');
+        todoViewCaptionEl.innerHTML = '<div class="caption-first-line">' + firstLine + '</div>';
+        todoViewCaptionEl.classList.remove('caption-sat', 'caption-sun-holiday', 'has-caption-repeat');
         if (holidayName) {
           todoViewCaptionEl.classList.add('caption-sun-holiday');
         } else if (d.getDay() === 6) {
@@ -3160,7 +3998,7 @@ delBtn.title = '삭제';
         }
       } else {
         todoViewCaptionEl.textContent = '';
-        todoViewCaptionEl.classList.remove('caption-sat', 'caption-sun-holiday', 'has-caption-repeat');
+        todoViewCaptionEl.classList.remove('caption-sat', 'caption-sun-holiday');
       }
     }
   }
@@ -3175,6 +4013,7 @@ delBtn.title = '삭제';
       if (viewToggleCal) viewToggleCal.classList.add('active');
       if (viewToggleTodo) viewToggleTodo.classList.remove('active');
     } else {
+      if (state.todoViewCenterDate == null) state.todoViewCenterDate = new Date();
       if (todoListWrap) todoListWrap.style.display = '';
       if (calendarFullWrap) calendarFullWrap.style.display = 'none';
       if (viewToggleCal) viewToggleCal.classList.remove('active');
@@ -3190,12 +4029,52 @@ delBtn.title = '삭제';
   if (viewToggleTodo) {
     viewToggleTodo.addEventListener('click', () => { setViewMode('todo'); });
   }
-  if (viewToggleTodo) viewToggleTodo.classList.add('active');
+  const todoThreeColPrev = document.getElementById('todo-three-col-prev');
+  const todoThreeColNext = document.getElementById('todo-three-col-next');
+  if (todoThreeColPrev) {
+    todoThreeColPrev.addEventListener('click', () => {
+      if (state.viewMode !== 'todo') return;
+      const d = state.todoViewCenterDate || new Date();
+      state.todoViewCenterDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+      state.selectedDate = state.todoViewCenterDate;
+      renderTodos();
+      updateTodoViewCaption();
+      renderCalendar();
+    });
+  }
+  if (todoThreeColNext) {
+    todoThreeColNext.addEventListener('click', () => {
+      if (state.viewMode !== 'todo') return;
+      const d = state.todoViewCenterDate || new Date();
+      state.todoViewCenterDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      state.selectedDate = state.todoViewCenterDate;
+      renderTodos();
+      updateTodoViewCaption();
+      renderCalendar();
+    });
+  }
+  const todoThreeColToday = document.getElementById('todo-three-col-today');
+  if (todoThreeColToday) {
+    todoThreeColToday.addEventListener('click', () => {
+      if (state.viewMode !== 'todo') return;
+      state.todoViewCenterDate = new Date();
+      state.selectedDate = state.todoViewCenterDate;
+      renderTodos();
+      updateTodoViewCaption();
+      renderCalendar();
+    });
+  }
+  setViewMode(state.viewMode);
 
-  todoListEl.addEventListener('click', e => {
+  todoListWrap.addEventListener('click', e => {
     const btn = e.target.closest('.section-add-btn');
     if (!btn) return;
     e.preventDefault();
+    const dayCol = btn.closest('.todo-day-col');
+    if (dayCol && dayCol.dataset.date) {
+      const [y, m, d] = dayCol.dataset.date.split('-').map(Number);
+      state.selectedDate = new Date(y, m - 1, d);
+    }
     if (!state.selectedDate) {
       alert('달력에서 날짜를 먼저 선택하세요.');
       return;
@@ -3336,6 +4215,16 @@ delBtn.title = '삭제';
           state.selectedDate = new Date(parseInt(dkey.slice(0, 4), 10), parseInt(dkey.slice(5, 7), 10) - 1, parseInt(dkey.slice(8, 10), 10));
           openTodoModal(id);
         }
+        return;
+      }
+      if (e.target.closest('.cal-full-day-todo')) return;
+      const dayCell = e.target.closest('.cal-full-day[data-date]');
+      if (dayCell && !dayCell.classList.contains('other-month')) {
+        const dkey = dayCell.dataset.date;
+        if (dkey) {
+          state.selectedDate = new Date(parseInt(dkey.slice(0, 4), 10), parseInt(dkey.slice(5, 7), 10) - 1, parseInt(dkey.slice(8, 10), 10));
+          addTodoInline('morning');
+        }
       }
     });
   }
@@ -3354,35 +4243,39 @@ delBtn.title = '삭제';
       syncKeyFromFirebase(STORAGE_CALENDAR_TYPE)
     ]);
 
-    loadQuote();
-    loadTodos();
-    loadRepeating();
+  loadQuote();
+  loadTodos();
+  loadRepeating();
     loadSpecialDates();
     loadCalendarMemo();
     var savedCalType = getFromStore(STORAGE_CALENDAR_TYPE);
     if (savedCalType === 'lunar' || savedCalType === 'solar') state.calendarType = savedCalType;
 
-    loadMemoTabs();
+  loadMemoTabs();
     var specialDatesChanged = false;
     (state.specialDates || []).forEach(function (s) {
-      if (!s.memoTabId && state.memoTabs && state.memoTabs.length) { s.memoTabId = getPersonalTabId() || state.memoTabs[0].id; specialDatesChanged = true; }
+      if (!s.memoTabId && state.memoTabs && state.memoTabs.length) {
+        var _pid2 = getPersonalTabId();
+        if (_pid2) { s.memoTabId = _pid2; specialDatesChanged = true; }
+      }
     });
     if (specialDatesChanged) saveSpecialDates();
-    loadMemos();
+  loadMemos();
 
-    /* 메모 처음에는 전체 메뉴가 모두 보이도록 */
-    state.viewAllMemos = true;
-    state.activeMemoTabId = null;
-    const memoCol = document.querySelector('.memo-col');
-    if (memoCol) memoCol.classList.add('memo-view-all');
-    renderMemoTabs();
-    showMemoContent();
+  /* 메모 처음에는 전체 메뉴가 모두 보이도록 */
+  state.viewAllMemos = true;
+  state.activeMemoTabId = null;
+  const memoCol = document.querySelector('.memo-col');
+  if (memoCol) memoCol.classList.add('memo-view-all');
+  renderMemoTabs();
+  showMemoContent();
 
-    state.selectedDate = new Date();
+  state.selectedDate = new Date();
 
-    renderCalendar();
-    renderTodos();
-    updateTodoViewCaption();
+  renderCalendar();
+  renderTodos();
+    if (state.viewMode === 'calendarFull') renderCalendarFull();
+  updateTodoViewCaption();
     updateCalendarTypeUI();
   }
 
@@ -3482,11 +4375,11 @@ delBtn.title = '삭제';
     }
   }, true);
 
-  todoListEl.addEventListener('dragstart', e => {
+  todoListWrap.addEventListener('dragstart', e => {
     if (e.target.closest('input, button')) return;
     const li = e.target.closest('.todo-item');
     if (!li || li.classList.contains('todo-item-completed')) return;
-    const key = state.selectedDate ? dateKey(state.selectedDate) : null;
+    const key = li.dataset.dateKey || (state.selectedDate ? dateKey(state.selectedDate) : null);
     if (!key) return;
     const section = li.dataset.section;
     const idx = parseInt(li.dataset.index, 10);
@@ -3502,7 +4395,7 @@ delBtn.title = '삭제';
     } catch (_) {}
   });
 
-  todoListEl.addEventListener('dragend', () => {
+  todoListWrap.addEventListener('dragend', () => {
     if (state.draggedTodoPayload) {
       document.querySelectorAll('.todo-item').forEach(el => {
         el.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
