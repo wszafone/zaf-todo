@@ -1481,7 +1481,6 @@
   }
 
   function todoSortOrder(a, b) {
-    if (a.completed !== b.completed) return (a.completed ? 1 : 0) - (b.completed ? 1 : 0);
     const ao = typeof a.order === 'number' && !isNaN(a.order) ? a.order : null;
     const bo = typeof b.order === 'number' && !isNaN(b.order) ? b.order : null;
     if (ao !== null && bo !== null) {
@@ -1490,10 +1489,7 @@
     }
     if (ao !== null) return -1;
     if (bo !== null) return 1;
-    const ar = !!(a.repeat && a.repeat !== 'none');
-    const br = !!(b.repeat && b.repeat !== 'none');
-    const c = (br ? 1 : 0) - (ar ? 1 : 0);
-    if (c !== 0) return c;
+    // order가 없는 경우에는 id로만 결정(완료/미완료 분리 없이 섞이도록)
     return String(a.id).localeCompare(String(b.id));
   }
   function getTodosForDate(key) {
@@ -1582,7 +1578,8 @@
   /** 미완료만: 반복 인스턴스·일반 할일 포함, 화면과 동일한 순서 */
   function getVisibleSectionTodosForMove(key, section) {
     const by = getTodosForDate(key);
-    return (by[section] || []).filter(t => !t.completed);
+    // 드래그앤드롭 대상에는 완료 항목도 포함
+    return (by[section] || []).slice();
   }
 
   function getSectionTodoListForMove(key, section) {
@@ -1614,7 +1611,17 @@
     if (!targetEl || !targetEl.dataset || !targetEl.dataset.id) return arr.length;
     const pos = arr.findIndex(t => t.id === targetEl.dataset.id);
     if (pos < 0) return arr.length;
-    return insertAbove ? pos : pos + 1;
+    let insertIndex = insertAbove ? pos : pos + 1;
+    // 같은 날짜/섹션에서 끌어온 경우, remove 후 기준 인덱스가 1칸 당겨진다.
+    const p = state && state.draggedTodoPayload;
+    const isSameKeySectionMove = !!(p
+      && p.key === key
+      && String(p.section || 'morning') === String(section)
+      && typeof p.index === 'number');
+    if (isSameKeySectionMove && insertIndex > p.index) insertIndex -= 1;
+    const maxIdx = Math.max(0, arr.length - (isSameKeySectionMove ? 1 : 0));
+    insertIndex = Math.max(0, Math.min(insertIndex, maxIdx));
+    return insertIndex;
   }
 
   function cleanupTodoDragVisualState() {
@@ -1751,6 +1758,17 @@
     nonRepeatingOrdered.forEach(t => { if (bySecWithRepeat[t.section]) bySecWithRepeat[t.section].push(t); });
     repeatingTo.forEach(t => { if (bySecWithRepeat[t.section]) bySecWithRepeat[t.section].push(t); });
     state.todos[toKey] = TODO_SECTIONS.flatMap(s => bySecWithRepeat[s] || []);
+    // 섹션 내부 배열 순서를 기준으로 order 값을 재부여:
+    // getTodosForDate가 todoSortOrder(order)로 정렬하므로, 여기서 order를 맞춰야 UI 순서가 유지됨.
+    const reapplyOrdersForKey = (k) => {
+      const list = state.todos[k] || [];
+      TODO_SECTIONS.forEach((sec) => {
+        const items = list.filter(t => t.section === sec);
+        items.forEach((t, i) => { t.order = i * 1000; });
+      });
+    };
+    reapplyOrdersForKey(fromKey);
+    reapplyOrdersForKey(toKey);
     saveTodos();
     renderTodos();
     if (state.viewMode === 'calendarFull') renderCalendarFull();
@@ -2441,13 +2459,9 @@
       const ul = cell.querySelector('.cal-full-todos');
       const bySection = getTodosForDate(dkey);
       const sectionOrder = ['morning', 'lunch', 'afternoon', 'evening'];
-      /** 할일 보기와 동일: 섹션 순(오전→점심→오후→저녁), 각 섹션 내 순서는 getTodosForDate·todoSortOrder 결과 유지 */
-      const todosActive = sectionOrder.flatMap(s => (bySection[s] || []).filter(t => !t.completed));
-      const todosCompleted = sectionOrder.flatMap(s => (bySection[s] || []).filter(t => !!t.completed));
-      // 미완료를 먼저 렌더링하고, 완료는 해당 날짜의 할일들 '아래'로 표시
-      const todosAll = todosActive.concat(todosCompleted);
-      if (ul && todosAll.length > 0) {
-        todosAll.forEach((t, idx) => {
+      /** 할일 보기와 동일: (1) 섹션 순(오전→점심→오후→저녁) (2) 섹션 내부는 미완료 후 완료 순 */
+      if (ul) {
+        function renderTodoLi(t, idxInSection) {
           const section = t.section || 'morning';
           const colorIdx = getTodoColorIndex(t, section);
           const completed = !!t.completed;
@@ -2456,15 +2470,16 @@
             (completed ? ' cal-full-todo-completed todo-item-completed' : '') +
             (t.important === 'blue' ? ' cal-full-todo-important-blue' : t.important === 'red' ? ' cal-full-todo-important-red' : '') +
             (t.repeat && t.repeat !== 'none' ? ' cal-full-todo-repeat-on' : '');
-          li.draggable = !completed;
+          li.draggable = true;
           li.dataset.id = t.id;
           li.dataset.dateKey = dkey;
           li.dataset.section = section;
-          li.dataset.index = String(idx);
+          li.dataset.index = String(idxInSection);
           li.dataset.completed = completed ? '1' : '0';
           li.dataset.important = t.important || '0';
           const realId = String(t.id).includes('_') ? String(t.id).split('_').slice(0, -1).join('_') : t.id;
           li.dataset.realId = realId;
+
           const title = (t.title || '제목').slice(0, 18) + ((t.title || '').length > 18 ? '…' : '');
           const emptyTitleCls = !(t.title && t.title.trim()) ? ' cal-full-todo-title-empty' : '';
           const importantIcon = (t.important === 'blue' || t.important === 'red') ? '★' : '☆';
@@ -2473,17 +2488,22 @@
           const importantCls = t.important === 'blue' ? ' cal-full-todo-important-blue' : t.important === 'red' ? ' cal-full-todo-important-red' : '';
           const repeatCls = (t.repeat && t.repeat !== 'none') ? ' cal-full-todo-repeat-on' : '';
           const completeCls = completed ? ' cal-full-todo-complete-on' : '';
-          li.innerHTML = `<span class="cal-full-todo-icons" aria-hidden="true"><button type="button" class="cal-full-todo-complete${completeCls}" title="${completed ? '완료 (클릭 취소)' : '미완료'}">${completeIcon}</button><button type="button" class="cal-full-todo-important${importantCls}" title="${t.important === 'red' ? '중요 빨강 (클릭 해제)' : t.important === 'blue' ? '중요 파랑 (클릭 시 빨강)' : '중요 표시'}">${importantIcon}</button><button type="button" class="cal-full-todo-repeat${repeatCls}" title="${t.repeat && t.repeat !== 'none' ? '반복 설정됨 (클릭하여 변경)' : '반복'}">${repeatIcon}</button></span><span class="cal-full-todo-title${emptyTitleCls}" data-full-title="${escapeHtml(t.title || '')}" title="${escapeHtml(t.title || '')}">${escapeHtml(title)}</span><button type="button" class="cal-full-todo-del" data-id="${t.id}" data-date="${dkey}" aria-label="삭제">×</button>`;
+          li.innerHTML =
+            `<span class="cal-full-todo-icons" aria-hidden="true"><button type="button" class="cal-full-todo-complete${completeCls}" title="${completed ? '완료 (클릭 취소)' : '미완료'}">${completeIcon}</button><button type="button" class="cal-full-todo-important${importantCls}" title="${t.important === 'red' ? '중요 빨강 (클릭 해제)' : t.important === 'blue' ? '중요 파랑 (클릭 시 빨강)' : '중요 표시'}">${importantIcon}</button><button type="button" class="cal-full-todo-repeat${repeatCls}" title="${t.repeat && t.repeat !== 'none' ? '반복 설정됨 (클릭하여 변경)' : '반복'}">${repeatIcon}</button></span>` +
+            `<span class="cal-full-todo-title${emptyTitleCls}" data-full-title="${escapeHtml(t.title || '')}" title="${escapeHtml(t.title || '')}">${escapeHtml(title)}</span>` +
+            `<button type="button" class="cal-full-todo-del" data-id="${t.id}" data-date="${dkey}" aria-label="삭제">×</button>`;
+
           ul.appendChild(li);
+
           var descTrimFull = (t.desc || '').trim();
           var titleTrimFull = (t.title || '').trim();
           li.addEventListener('mouseenter', function (e) {
             var titleEl = e.target && e.target.closest && e.target.closest('.cal-full-todo-title');
             if (titleEl) {
-              if (!isCalFullTodoTitleClipped(titleEl)) return;
-              var tx = (titleEl.dataset && titleEl.dataset.fullTitle != null) ? String(titleEl.dataset.fullTitle).trim() : titleTrimFull;
-              if (!tx) return;
-              showTodoDescTooltip(tx, titleEl.getBoundingClientRect());
+              // 달력: 제목 hover 시 "내용(desc)"만 표시
+              if (!descTrimFull) return;
+              // 요청: 제목 바로 "뒤(아래)"에 풍선창 표시
+              showTodoDescTooltip(descTrimFull, titleEl.getBoundingClientRect(), 'below');
               return;
             }
             if (!descTrimFull) return;
@@ -2493,6 +2513,12 @@
             showTodoDescTooltip(descTrimFull, li.getBoundingClientRect());
           });
           li.addEventListener('mouseleave', hideTodoDescTooltip);
+        }
+
+        sectionOrder.forEach(function (sec) {
+          const items = bySection[sec] || [];
+          // completed 여부와 무관하게 섹션의 'order' 순서 그대로 렌더한다.
+          items.forEach(function (t, idx) { renderTodoLi(t, idx); });
         });
       }
       body.appendChild(cell);
@@ -2509,7 +2535,6 @@
     grid.querySelectorAll('.cal-full-day-todo:not(.cal-full-more)').forEach(li => {
       li.addEventListener('dragstart', (e) => {
         if (e.target.closest('button')) return;
-        if (li.dataset.completed === '1') return; // 완료는 드래그 이동 제외
         const dkey = li.dataset.dateKey;
         state.draggedTodoPayload = { key: dkey, id: li.dataset.id, section: li.dataset.section || 'morning', index: parseInt(li.dataset.index, 10) };
         state.todoDropTarget = null;
@@ -2541,6 +2566,7 @@
         const toKey = li.dataset.dateKey;
         const toSection = li.dataset.section || 'morning';
         const toIndex = computeTodoSectionInsertIndexBeforeRemoval(toKey, toSection, li, insertAbove);
+        const fromSection = payload.section || 'morning';
         document.querySelectorAll('.cal-full-day').forEach(el => el.classList.remove('cal-full-day-drag-over'));
         document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over-top', 'drag-over-bottom'));
         document.querySelectorAll('.cal-full-day-todo').forEach(el => el.classList.remove('drag-over-top', 'drag-over-bottom'));
@@ -2551,6 +2577,9 @@
         } else {
           moveTodo(payload.key, payload.id, toSection, toIndex);
         }
+        if (fromSection && payload.key) normalizeOrdersInSection(payload.key, fromSection);
+        if (String(fromSection) !== String(toSection) || payload.key !== toKey) normalizeOrdersInSection(toKey, toSection);
+        renderCalendarFull();
       });
     });
   }
@@ -2690,7 +2719,44 @@ delBtn.title = '삭제';
     completeBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setTodoCompleted(t.id, !completed, fromKey);
+      // 완료 체크 시 재렌더링(renderTodos)하면 active/completed 정렬 때문에 DOM이 아래로 이동할 수 있어,
+      // 여기서는 상태 + UI만 제자리에서 갱신한다.
+      const todoId = t.id;
+      const safeFromKey = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
+      const wasCompletedNow = li.classList.contains('todo-item-completed');
+      const nowCompleted = !wasCompletedNow;
+
+      pushUndoSnapshot();
+      const isRepeatingInstance = /_\d{4}-\d{2}-\d{2}$/.test(String(todoId));
+      if (isRepeatingInstance) {
+        const realId = String(todoId).replace(/_\d{4}-\d{2}-\d{2}$/, '');
+        const r = state.repeatingTodos.find(x => x.id === realId);
+        if (!r) return;
+        if (!repeatingTodoMemoTabActive(r)) return;
+        if (nowCompleted) state.completedRepeatingInstances[todoId] = true;
+        else delete state.completedRepeatingInstances[todoId];
+        saveCompletedRepeating();
+      } else if (safeFromKey && state.todos[safeFromKey]) {
+        const t0 = state.todos[safeFromKey].find(x => x.id === todoId);
+        if (!t0) return;
+        if (!isTodoMemoTabActive(t0)) return;
+        t0.completed = !!nowCompleted;
+        saveTodos();
+      }
+
+      // 동일 id를 가진 항목이 있으면(예: 반복 인스턴스) 같이 UI 갱신
+      const escapeForAttr = (v) => (window.CSS && typeof window.CSS.escape === 'function') ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+      const selector = '.todo-item[data-id="' + escapeForAttr(todoId) + '"]';
+      document.querySelectorAll(selector).forEach(function (itemEl) {
+        itemEl.classList.toggle('todo-item-completed', nowCompleted);
+        const btn = itemEl.querySelector('.todo-complete-toggle');
+        if (btn) {
+          btn.classList.toggle('is-completed', nowCompleted);
+          btn.textContent = nowCompleted ? '✓' : '☐';
+          btn.title = nowCompleted ? '완료 (클릭 취소)' : '미완료';
+        }
+        itemEl.draggable = true;
+      });
     });
     categorySelect.addEventListener('change', function () {
       pushUndoSnapshot();
@@ -2749,20 +2815,12 @@ delBtn.title = '삭제';
         const ul = colEl.querySelector('.todo-items[data-section="' + section + '"]');
       if (!ul) return;
       ul.innerHTML = '';
-        (bySection[section] || []).forEach(function (t, idx) {
-        if (t.completed) return;
+      const items = bySection[section] || [];
+        // completed 여부와 무관하게 섹션 내 'order' 순서대로 렌더한다.
+        items.forEach(function (t, idx) {
           renderTodoItem(ul, t, section, idx, { dateKey: col.key });
       });
     });
-      const completedUl = colEl.querySelector('.todo-items[data-section="completed"]');
-    if (completedUl) {
-      completedUl.innerHTML = '';
-      const sectionOrder = ['morning', 'lunch', 'afternoon', 'evening'];
-        const completedItems = sectionOrder.flatMap(function (s) { return (bySection[s] || []).filter(function (t) { return t.completed; }); });
-        completedItems.forEach(function (t, idx) {
-          renderTodoItem(completedUl, t, t.section, idx, { noDrag: true, dateKey: col.key });
-        });
-      }
       ['morning', 'lunch', 'afternoon', 'evening'].forEach(function (section) {
         const secEl = colEl.querySelector('.todo-section.section-' + section);
         const inp = secEl && secEl.querySelector('.section-header-note');
@@ -2827,7 +2885,7 @@ delBtn.title = '삭제';
     }
     return el;
   }
-  function showTodoDescTooltip(text, anchorRect) {
+  function showTodoDescTooltip(text, anchorRect, placement) {
     var t = (text || '').trim();
     if (!t) return;
     var tooltipEl = getTodoDescTooltipEl();
@@ -2843,12 +2901,17 @@ delBtn.title = '삭제';
     var viewW = window.innerWidth;
     var viewH = window.innerHeight;
     var left = anchorRect.left;
-    var top = anchorRect.top - th - gap;
+    var place = placement || 'auto'; // 'auto'|'above'|'below'
+    var top;
+    if (place === 'below') {
+      top = anchorRect.bottom + gap;
+    } else {
+      top = anchorRect.top - th - gap;
+      // auto: 위에 공간이 부족하면 아래로 뒤집기
+      if (place === 'auto' && top < 8) top = anchorRect.bottom + gap;
+    }
     if (left + tw > viewW - 8) left = Math.max(8, viewW - tw - 8);
     if (left < 8) left = 8;
-    if (top < 8) {
-      top = anchorRect.bottom + gap;
-    }
     if (top + th > viewH - 8) {
       top = Math.max(8, viewH - th - 8);
     }
@@ -2867,12 +2930,12 @@ delBtn.title = '삭제';
     let overItem = null;
     for (const el of els) {
       const li = el.closest && el.closest('.todo-item');
-      if (li && !li.classList.contains('todo-item-completed') && !li.classList.contains('dragging')) {
+      if (li && !li.classList.contains('dragging')) {
         overItem = li;
         break;
       }
       const calLi = el.closest && el.closest('.cal-full-day-todo:not(.cal-full-more)');
-      if (calLi && !calLi.classList.contains('dragging')) {
+      if (calLi) {
         overItem = calLi;
         break;
       }
@@ -2880,6 +2943,7 @@ delBtn.title = '삭제';
     const overUl = els.find(el => el.classList && el.classList.contains('todo-items') && el.dataset.section && el.dataset.section !== 'completed');
     const overCalFullDay = els.find(el => el.classList && el.classList.contains('cal-full-day') && el.dataset.date);
     document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over-top', 'drag-over-bottom'));
+    document.querySelectorAll('.cal-full-day-todo').forEach(el => el.classList.remove('drag-over-top', 'drag-over-bottom'));
     document.querySelectorAll('.cal-full-day').forEach(el => el.classList.remove('cal-full-day-drag-over'));
     if (overItem) {
       const rect = overItem.getBoundingClientRect();
@@ -2899,6 +2963,32 @@ delBtn.title = '삭제';
       const appendSection = 'morning';
       const appendIdx = key ? getSectionTodoListForMove(key, appendSection).length : 0;
       state.todoDropTarget = { el: null, insertAbove: false, section: appendSection, index: appendIdx, key };
+
+      // 달력 셀 빈 영역 위에서도 "회색 줄"이 보이게:
+      // 해당 날짜 셀 내부의 첫/마지막 todo 기준으로 drag-over-top/bottom을 표시한다.
+      const items = Array.from(overCalFullDay.querySelectorAll('.cal-full-day-todo:not(.cal-full-more)'));
+      if (items.length > 0) {
+        // y 기준으로 가장 가까운 앵커를 찾는다.
+        let anchor = null;
+        let insertAbove = false;
+        for (let i = 0; i < items.length; i++) {
+          const r = items[i].getBoundingClientRect();
+          const mid = r.top + r.height / 2;
+          if (e.clientY < mid) {
+            anchor = items[i];
+            insertAbove = true;
+            break;
+          }
+        }
+        if (!anchor) {
+          anchor = items[items.length - 1];
+          insertAbove = false;
+        }
+        if (anchor) {
+          anchor.classList.toggle('drag-over-top', insertAbove);
+          anchor.classList.toggle('drag-over-bottom', !insertAbove);
+        }
+      }
     } else {
       state.todoDropTarget = null;
     }
@@ -5647,6 +5737,28 @@ delBtn.title = '삭제';
   setViewMode(state.viewMode);
 
   todoListWrap.addEventListener('click', e => {
+    const titleInput = e.target && e.target.closest ? e.target.closest('.todo-item-title-input') : null;
+    if (state.viewMode === 'todo' && titleInput) {
+      const li = titleInput.closest('.todo-item');
+      if (li && li.classList.contains('todo-item-completed') && li.dataset && li.dataset.id) {
+        e.preventDefault();
+        e.stopPropagation();
+        openTodoModalFromTitleInput(titleInput);
+        return;
+      }
+    }
+    if (state.viewMode === 'todo') {
+      const todoLi = e.target && e.target.closest ? e.target.closest('.todo-item') : null;
+      if (todoLi && todoLi.dataset && todoLi.dataset.id) {
+        // input/버튼은 편집/아이콘 동작을 우선하고, 그 외 영역 클릭은 모달 이동
+        if (!e.target.closest('input, button, select, textarea')) {
+          e.preventDefault();
+          e.stopPropagation();
+          openTodoModal(todoLi.dataset.id);
+          return;
+        }
+      }
+    }
     const btn = e.target.closest('.section-add-btn');
     if (!btn) return;
     e.preventDefault();
@@ -5733,8 +5845,30 @@ delBtn.title = '삭제';
         if (li) {
           const dkey = li.dataset.dateKey;
           if (dkey) state.selectedDate = new Date(parseInt(dkey.slice(0, 4), 10), parseInt(dkey.slice(5, 7), 10) - 1, parseInt(dkey.slice(8, 10), 10));
-          setTodoCompleted(li.dataset.id, li.dataset.completed !== '1');
-          renderCalendarFull();
+          const todoId = li.dataset.id;
+          const wasCompleted = li.dataset.completed === '1';
+          const nowCompleted = !wasCompleted;
+          setTodoCompleted(todoId, nowCompleted);
+
+          // 정렬/DOM 재생성(re-render) 없이 "제자리"에서 완료 표시만 바꾼다.
+          // (같은 id의 다른 셀까지 함께 갱신)
+          const safeEscape = (v) => (window.CSS && typeof window.CSS.escape === 'function') ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+          const selector = '.cal-full-day-todo[data-id="' + safeEscape(todoId) + '"]';
+          document.querySelectorAll(selector).forEach((itemEl) => {
+            const completed = itemEl.dataset.completed === '1' ? true : false;
+            itemEl.dataset.completed = nowCompleted ? '1' : '0';
+            // completed 상태는 cal-full-todo-completed + todo-item-completed 클래스를 사용
+            itemEl.classList.toggle('cal-full-todo-completed', nowCompleted);
+            itemEl.classList.toggle('todo-item-completed', nowCompleted);
+            itemEl.draggable = true;
+
+            const btn = itemEl.querySelector('.cal-full-todo-complete');
+            if (btn) {
+              btn.classList.toggle('cal-full-todo-complete-on', nowCompleted);
+              btn.title = nowCompleted ? '완료 (클릭 취소)' : '미완료';
+              btn.textContent = nowCompleted ? '✓' : '☐';
+            }
+          });
         }
         return;
       }
@@ -5774,6 +5908,11 @@ delBtn.title = '삭제';
           if (dkey) state.selectedDate = new Date(parseInt(dkey.slice(0, 4), 10), parseInt(dkey.slice(5, 7), 10) - 1, parseInt(dkey.slice(8, 10), 10));
           const fullTitle = titleSpan.dataset.fullTitle || titleSpan.getAttribute('title') || '';
           clearTimeout(calFullTitleSingleClickTimer);
+          // 완료 처리된 할일은 "제목 클릭"으로 즉시 이동(모달 오픈)
+          if (li.classList.contains('cal-full-todo-completed') && li.dataset.id) {
+            openTodoModal(li.dataset.id);
+            return;
+          }
           calFullTitleSingleClickTimer = setTimeout(function () {
             calFullTitleSingleClickTimer = null;
             if (!titleSpan.isConnected || titleSpan.querySelector('input')) return;
@@ -6162,11 +6301,23 @@ delBtn.title = '삭제';
       } else {
         toIndexInSection = getSectionTodoListForMove(toKey, toSection).length;
       }
+
+      // 이동 시 completed(체크)는 절대 자동 토글하지 않는다.
+      // (사용자는 일반/완료 항목을 서로 자유롭게 "이동"만 원함)
+      const fromSection = payload.section || 'morning';
       if (fromKey !== toKey) {
         moveTodoToDate(fromKey, payload.id, toKey, toSection, toIndexInSection);
+        if (fromSection && fromKey) normalizeOrdersInSection(fromKey, fromSection);
+        normalizeOrdersInSection(toKey, toSection);
+        if (state.viewMode === 'calendarFull') renderCalendarFull();
+        else renderTodos();
         return;
       }
       moveTodo(payload.key, payload.id, toSection, toIndexInSection);
+      normalizeOrdersInSection(fromKey, fromSection);
+      if (String(fromSection) !== String(toSection)) normalizeOrdersInSection(toKey, toSection);
+      if (state.viewMode === 'calendarFull') renderCalendarFull();
+      else renderTodos();
       return;
     }
 
@@ -6191,7 +6342,7 @@ delBtn.title = '삭제';
   todoListWrap.addEventListener('dragstart', e => {
     if (e.target.closest('input, button')) return;
     const li = e.target.closest('.todo-item');
-    if (!li || li.classList.contains('todo-item-completed')) return;
+    if (!li) return;
     const key = li.dataset.dateKey || (state.selectedDate ? dateKey(state.selectedDate) : null);
     if (!key) return;
     const section = li.dataset.section;

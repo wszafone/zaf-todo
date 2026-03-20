@@ -1986,6 +1986,7 @@ header {
 }
 .cal-full-day-todo.drag-over-top {
   position: relative;
+  overflow: visible; /* drag line pseudo-element를 top:-2px로 표시해도 잘리지 않게 */
 }
 .cal-full-day-todo.drag-over-top::before {
   content: '';
@@ -2000,6 +2001,7 @@ header {
 }
 .cal-full-day-todo.drag-over-bottom {
   position: relative;
+  overflow: visible; /* drag line pseudo-element를 bottom:-2px로 표시해도 잘리지 않게 */
 }
 .cal-full-day-todo.drag-over-bottom::after {
   content: '';
