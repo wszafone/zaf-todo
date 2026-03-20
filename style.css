@@ -626,7 +626,7 @@ header {
 .calendar-memo-wrap {
   flex: 1;
   min-height: 0;
-  padding: 4px 10px;
+  padding: 4px 10px 0 10px;
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -635,15 +635,16 @@ header {
 .calendar-memo-wrap .calendar-memo-editor-inline {
   flex: 1;
   min-height: 80px;
+  margin-bottom: 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel, #fff);
 }
 .calendar-memo-wrap .calendar-memo-contenteditable {
-  padding: 8px 10px;
+  padding: 8px 10px 12px 10px;
   font-size: 14px;
   font-family: var(--font-family);
-  line-height: 1.5;
+  line-height: 1.2;
   overflow-y: auto;
   outline: none;
 }
@@ -651,15 +652,316 @@ header {
   content: attr(data-placeholder);
   color: #b0b5bc;
 }
+
+/*
+ * 달력 아래 메모(#calendar-memo): contenteditable에서 Enter 시 div/p가 생기며
+ * 기본 margin 때문에 줄간격이 넓어 보임. 목록(li)도 동일하게 1.2로 맞춤.
+ */
+#calendar-memo {
+  line-height: 1.2;
+}
+#calendar-memo p,
+#calendar-memo div {
+  margin: 0;
+  line-height: 1.2;
+}
+#calendar-memo ul,
+#calendar-memo ol {
+  margin: 0.35em 0;
+  padding-left: 1.4em;
+  line-height: 1.2;
+}
+#calendar-memo li {
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.2;
+  min-height: 0;
+}
+#calendar-memo li > p,
+#calendar-memo li > div {
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* 분류·전체보기 메모 본문: 달력 아래 에디터와 동일 구조(contenteditable), 맞춤법 빨간 밑줄 숨김 */
+.memo-item-content-rich {
+  line-height: 1.2;
+  font-size: 12px;
+  font-family: var(--font-family);
+  outline: none;
+  word-break: break-word;
+  /* 행 전체 cursor:grab 상속 방지 — 본문에서는 텍스트 입력 커서(I-beam) */
+  cursor: text;
+}
+.memo-item-content-rich:empty::before {
+  content: attr(data-placeholder);
+  color: #b0b5bc;
+  pointer-events: none;
+}
+.memo-item-content-rich p,
+.memo-item-content-rich div {
+  margin: 0;
+  line-height: 1.2;
+}
+.memo-item-content-rich ul,
+.memo-item-content-rich ol {
+  margin: 0.35em 0;
+  padding-left: 1.4em;
+  line-height: 1.2;
+}
+.memo-item-content-rich li {
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.2;
+  min-height: 0;
+}
+.memo-item-content-rich li > p,
+.memo-item-content-rich li > div {
+  margin: 0;
+  line-height: 1.2;
+}
+.memo-item-content.memo-item-content-rich {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.memo-item-content-rich:focus {
+  outline: none;
+  box-shadow: none;
+}
+/* 브라우저 맞춤법 표시(빨간 밑줄) 최소화 — spellcheck=false 와 함께 사용 */
+.memo-item-content-rich::spelling-error {
+  text-decoration: none;
+}
+.memo-item-content-rich::grammar-error {
+  text-decoration: none;
+}
+
+.calendar-memo-selection-toolbar {
+  position: absolute;
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid #d8dee5;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+  overflow: visible;
+}
+
+.calendar-memo-selection-toolbar.show {
+  display: inline-flex;
+}
+
+/* 도구 위쪽 설명(호버 시) */
+.calendar-memo-toolbar-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.calendar-memo-toolbar-item::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  max-width: min(240px, 70vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+  background: #334155;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  transition-delay: 0s;
+  z-index: 4000;
+}
+.calendar-memo-toolbar-item:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 1s;
+}
+
+.calendar-memo-selection-size-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding-left: 4px;
+  padding-right: 2px;
+  cursor: default;
+}
+
+.calendar-memo-selection-font-size {
+  height: 26px;
+  max-width: 5.5em;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 11px;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+}
+
+.calendar-memo-selection-font-size:focus {
+  box-shadow: inset 0 0 0 1px #93c5fd;
+}
+
+.calendar-memo-selection-color-wrap {
+  position: relative;
+  align-items: center;
+}
+.calendar-memo-color-trigger {
+  box-sizing: border-box;
+  min-width: 30px;
+  height: 26px;
+  margin: 0;
+  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  cursor: pointer;
+  outline: none;
+}
+.calendar-memo-color-trigger:hover {
+  background: #edf2f7;
+}
+.calendar-memo-color-trigger:focus-visible {
+  box-shadow: 0 0 0 2px #93c5fd;
+}
+.calendar-memo-color-swatch {
+  display: block;
+  width: 18px;
+  height: 14px;
+  border-radius: 3px;
+  background: #111827;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+}
+.calendar-memo-color-picker-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d8dee5;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  max-width: 200px;
+  box-sizing: border-box;
+}
+.calendar-memo-color-picker-pop[hidden] {
+  display: none !important;
+}
+.calendar-memo-color-opt {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  margin: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  outline: none;
+}
+.calendar-memo-color-opt:hover {
+  border-color: #64748b;
+  transform: scale(1.05);
+}
+.calendar-memo-color-opt:focus-visible {
+  border-color: #2563eb;
+}
+
+/* HTML title 대체: 마우스를 올린 뒤 잠시 후 표시 */
+.global-delayed-tooltip {
+  position: fixed;
+  z-index: 100003;
+  max-width: min(300px, 90vw);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #fff;
+  background: #334155;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+  display: none;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.calendar-memo-selection-btn {
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.calendar-memo-selection-btn:hover {
+  background: #edf2f7;
+}
+
+.calendar-memo-selection-btn.calendar-memo-selection-btn--active {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+  font-weight: 600;
+}
+.calendar-memo-selection-btn.calendar-memo-selection-btn--active:hover {
+  background: #cbd5e1;
+  border-color: #64748b;
+}
+
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-container {
   border: none;
   font-size: 14px;
   font-family: var(--font-family);
+  line-height: 1.2;
 }
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor {
   min-height: 80px;
-  padding: 8px 10px;
+  padding: 8px 10px 12px 10px;
   font-size: 14px;
+  line-height: 1.2;
+}
+/* Quill 기본 p 블록 마진이 목록·문단 간격을 넓혀 보이게 함 */
+.calendar-memo-wrap .calendar-memo-editor-inline .ql-editor p {
+  margin: 0;
+  line-height: 1.2;
 }
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor.ql-blank::before {
   color: #b0b5bc;
@@ -767,13 +1069,27 @@ header {
 }
 /* 폰트 크기 선택 시 적용 */
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor span[style*="font-size"] {
-  line-height: 1.4;
+  line-height: 1.25;
 }
 
 /* 캘린더 메모: 1단계 글머리 인덴트 지금의 절반, 하위 단계 유지 */
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor ol,
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor ul {
   padding-left: 0.375em !important;
+  line-height: 1.2;
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+.calendar-memo-wrap .calendar-memo-editor-inline .ql-editor li {
+  line-height: 1.2;
+  margin-top: 0;
+  margin-bottom: 0;
+  min-height: 0;
+}
+.calendar-memo-wrap .calendar-memo-editor-inline .ql-editor li > p,
+.calendar-memo-wrap .calendar-memo-editor-inline .ql-editor li > div {
+  margin: 0;
+  line-height: 1.2;
 }
 .calendar-memo-wrap .calendar-memo-editor-inline .ql-editor li:not(.ql-direction-rtl)::before {
   margin-left: -0.375em !important;
@@ -849,14 +1165,14 @@ header {
   width: 100%;
   min-height: 80px;
   height: 100%;
-  padding: 8px 10px;
+  padding: 8px 10px 12px 10px;
   margin-top: 0;
   border: 1px solid var(--border);
   border-top: none;
   border-radius: 0 0 6px 6px;
   font-family: var(--font-family);
   font-size: var(--font-size);
-  line-height: 1.5;
+  line-height: 1.2;
   text-align: left;
   overflow-y: auto;
   outline: none;
@@ -870,6 +1186,7 @@ header {
   flex-direction: column;
   padding: 0;
   min-height: 120px;
+  margin-bottom: 10px;
 }
 .calendar-memo-wrap .calendar-memo-quill .ql-toolbar.ql-snow {
   border: 1px solid var(--border);
@@ -886,9 +1203,33 @@ header {
   border-radius: 0 0 6px 6px;
   font-family: var(--font-family);
   font-size: var(--font-size);
+  line-height: 1.2;
 }
 .calendar-memo-wrap .calendar-memo-quill .ql-editor {
   min-height: 80px;
+  padding: 8px 10px 12px 10px;
+  line-height: 1.2;
+}
+.calendar-memo-wrap .calendar-memo-quill .ql-editor p {
+  margin: 0;
+  line-height: 1.2;
+}
+.calendar-memo-wrap .calendar-memo-quill .ql-editor ol,
+.calendar-memo-wrap .calendar-memo-quill .ql-editor ul {
+  line-height: 1.2;
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+.calendar-memo-wrap .calendar-memo-quill .ql-editor li {
+  line-height: 1.2;
+  margin-top: 0;
+  margin-bottom: 0;
+  min-height: 0;
+}
+.calendar-memo-wrap .calendar-memo-quill .ql-editor li > p,
+.calendar-memo-wrap .calendar-memo-quill .ql-editor li > div {
+  margin: 0;
+  line-height: 1.2;
 }
 .calendar-memo-wrap .calendar-memo-editor:focus {
   border-color: var(--border);
@@ -902,6 +1243,21 @@ header {
 .calendar-memo-wrap .calendar-memo-editor font[size="4"] { font-size: var(--font-size); }
 .calendar-memo-wrap .calendar-memo-editor font[size="5"] { font-size: var(--font-size); }
 .calendar-memo-wrap .calendar-memo-editor u { text-decoration: underline; }
+
+.calendar-memo-wrap .calendar-memo-editor ul,
+.calendar-memo-wrap .calendar-memo-editor ol,
+.calendar-memo-wrap .calendar-memo-editor li {
+  line-height: 1.2;
+}
+.calendar-memo-wrap .calendar-memo-editor p,
+.calendar-memo-wrap .calendar-memo-editor div {
+  margin: 0;
+  line-height: 1.2;
+}
+.calendar-memo-wrap .calendar-memo-editor li > p,
+.calendar-memo-wrap .calendar-memo-editor li > div {
+  margin: 0;
+}
 
 .calendar-category-wrap {
   flex-shrink: 0;
@@ -1628,6 +1984,34 @@ header {
 .cal-full-day-todo.dragging {
   opacity: 0.6;
 }
+.cal-full-day-todo.drag-over-top {
+  position: relative;
+}
+.cal-full-day-todo.drag-over-top::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 2px;
+  background: rgba(107, 114, 128, 0.55);
+  border-radius: 1px;
+  z-index: 2;
+}
+.cal-full-day-todo.drag-over-bottom {
+  position: relative;
+}
+.cal-full-day-todo.drag-over-bottom::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  background: rgba(107, 114, 128, 0.55);
+  border-radius: 1px;
+  z-index: 2;
+}
 .cal-full-todo-icons {
   flex-shrink: 0;
   display: inline-flex;
@@ -1774,21 +2158,23 @@ header {
   background: #2a9bc9;
 }
 
-/* 할일: 달력 보기와 동일하게 960px 최소 너비, 그보다 좁아지면 가로 스크롤 */
+/* 할일 보기: 달력 보기(.calendar-full-grid min-width 960px)와 같은 기준으로 가로 스크롤 */
 .todo-list-wrap {
   display: flex;
   flex-direction: column;
   flex: 1 1 0;
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 .todo-three-col {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   flex: 1 1 0;
   min-height: 0;
-  min-width: 0;
+  min-width: 960px;
   gap: 0;
   border-left: 1px solid var(--border, #e5e7eb);
 }
@@ -1835,7 +2221,8 @@ header {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 2px 8px 8px;
+  /* 하단 패딩: 달력 아래 메모 영역(4px)과 맞춤 → 완료 박스 아래선 정렬 */
+  padding: 2px 8px 4px;
   display: flex;
   flex-direction: column;
 }
@@ -1877,10 +2264,45 @@ header {
 }
 
 .section-header-title {
-  flex: 1;
+  flex: 0 0 auto;
   color: #000;
   font-weight: 400;
   font-size: var(--font-size);
+}
+
+.section-header-note {
+  flex: 1;
+  min-width: 0;
+  margin: 0 4px 0 6px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.35);
+  font-size: var(--font-size);
+  font-weight: 400;
+  color: #374151;
+  font-family: var(--font-family);
+  line-height: 1.2;
+  text-align: center;
+  outline: none;
+  box-shadow: none;
+}
+/* 주제를 입력한 경우에만 굵게 */
+.section-header-note:not(:placeholder-shown) {
+  font-weight: 600;
+  color: #111827;
+}
+.section-header-note::placeholder {
+  color: var(--text-muted, #6b7280);
+  opacity: 1;
+  font-weight: 400;
+  text-align: center;
+}
+.section-header-note:focus {
+  background: rgba(255, 255, 255, 0.55);
+  border: none;
+  outline: none;
+  box-shadow: none;
 }
 
 /* 할일보기 + 버튼: 원형, 색상 흐리게, 크기 약간 축소 */
@@ -1962,7 +2384,7 @@ header {
   flex-shrink: 0;
   margin-left: 8px;
   margin-right: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 .section-completed .section-header {
   background: #e5e7eb;
@@ -2101,6 +2523,8 @@ header {
   text-decoration: line-through;
   color: var(--text);
   opacity: 0.85;
+  font-weight: 400 !important;
+  border-color: #e5e7eb;
 }
 
 .todo-item.todo-item-completed {
@@ -2153,45 +2577,57 @@ header {
   font-family: inherit;
 }
 
+/* 할일 보기: 제목·내용 입력 — 왼쪽 정렬 */
 .todo-item-title-input {
-  font-weight: var(--title-font-weight);
-  font-size: 13px;
-  color: #1a1a1a;
-  border: none;
-  background: transparent;
-  padding: 0 4px;
+  font-weight: 400;
+  font-size: var(--font-size);
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.35);
+  padding: 2px 6px;
   border-radius: 4px;
-  height: 22px;
-  line-height: 22px;
+  min-height: 22px;
+  line-height: 1.2;
   box-sizing: border-box;
+  text-align: left;
+  outline: none;
+  box-shadow: none;
+}
+
+.todo-item-title-input:not(:placeholder-shown) {
+  font-weight: 600;
+  color: #111827;
 }
 
 .todo-item-title-input:focus {
   outline: none;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.55);
+  border-color: #d1d5db;
 }
 
-/* 빈 제목: placeholder 12px, 볼드 제거, 회색 */
 .todo-item-title-input::placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
+  opacity: 1;
+  text-align: left;
 }
 .todo-item-title-input::-webkit-input-placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
+  opacity: 1;
 }
 .todo-item-title-input::-moz-placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
   opacity: 1;
 }
 .todo-item-title-input:-ms-input-placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
 }
 
 .todo-item-desc,
@@ -2202,45 +2638,56 @@ header {
 }
 
 .todo-item-desc-input {
-  color: var(--text);
-  font-size: 13px;
+  color: #374151;
+  font-size: var(--font-size);
   font-weight: 400;
-  border: none;
-  background: transparent;
-  padding: 0 4px;
+  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.35);
+  padding: 2px 6px;
   border-radius: 4px;
   margin-left: 0;
-  height: 22px;
-  line-height: 22px;
+  min-height: 22px;
+  line-height: 1.2;
   box-sizing: border-box;
+  text-align: left;
+  outline: none;
+  box-shadow: none;
+}
+
+.todo-item-desc-input:not(:placeholder-shown) {
+  font-weight: 400;
+  color: #374151;
 }
 
 .todo-item-desc-input:focus {
   outline: none;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.55);
+  border-color: #d1d5db;
 }
 
-/* 빈 내용: placeholder 12px, 볼드 제거, 회색 */
 .todo-item-desc-input::placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
+  opacity: 1;
+  text-align: left;
 }
 .todo-item-desc-input::-webkit-input-placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
+  opacity: 1;
 }
 .todo-item-desc-input::-moz-placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
   opacity: 1;
 }
 .todo-item-desc-input:-ms-input-placeholder {
-  font-size: 10px;
+  font-size: var(--font-size);
   font-weight: 400;
-  color: var(--placeholder-text);
+  color: var(--text-muted, #6b7280);
 }
 
 .todo-item-actions {
@@ -2342,10 +2789,16 @@ header {
 }
 .todo-item.todo-item-important-blue .todo-item-title-input {
   color: var(--info, #0d6efd);
+  font-weight: 400;
+}
+.todo-item.todo-item-important-blue .todo-item-title-input:not(:placeholder-shown) {
   font-weight: 700;
 }
 .todo-item.todo-item-important-red .todo-item-title-input {
   color: var(--danger, #c53030);
+  font-weight: 400;
+}
+.todo-item.todo-item-important-red .todo-item-title-input:not(:placeholder-shown) {
   font-weight: 700;
 }
 
@@ -2371,6 +2824,21 @@ header {
   border-radius: 6px;
   overflow: hidden;
   background: var(--panel);
+}
+
+.memo-completed-total-footer {
+  flex-shrink: 0;
+  padding: 4px 10px 6px;
+  background: var(--panel);
+}
+.memo-completed-total-footer .memo-completed-total-btn,
+.memo-completed-total-footer .memo-completed-count-btn {
+  width: 100%;
+  max-width: 100%;
+}
+/* 분류 선택(전체 보기 아님)일 때는 전체 완료 버튼 숨김 */
+.memo-col:not(.memo-view-all) .memo-completed-total-footer {
+  display: none;
 }
 
 .memo-tab-bar {
@@ -2525,6 +2993,14 @@ header {
   display: none;
 }
 
+/* 분류 선택 시: 메모 목록 박스(테두리 안) 좌우 안쪽 여백 축소 */
+.memo-col:not(.memo-view-all) .memo-list-wrap {
+  padding: 8px 6px;
+}
+.memo-col:not(.memo-view-all) .memo-editor {
+  padding: 10px 6px;
+}
+
 .memo-category-select {
   flex: 1;
   min-width: 80px;
@@ -2662,6 +3138,183 @@ header {
 }
 .memo-completed-wrap {
   flex-shrink: 0;
+  padding: 4px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.memo-completed-count-btn {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 6px 10px;
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: var(--title-font-weight);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  box-sizing: border-box;
+}
+.memo-completed-count-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(77, 184, 232, 0.08);
+}
+.memo-all-completed-count-btn {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: var(--title-font-weight);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  box-sizing: border-box;
+}
+.memo-all-completed-count-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(77, 184, 232, 0.08);
+}
+/* 전체 보기: 분류별 완료 버튼 숨김 */
+.memo-col.memo-view-all .memo-all-completed-count-btn {
+  display: none;
+}
+#memo-completed-modal-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 1.15;
+}
+#memo-completed-modal .memo-completed-modal-category-row {
+  margin: 0 0 4px;
+  padding: 0;
+}
+.memo-completed-modal-category-select {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.2;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-family);
+  box-sizing: border-box;
+}
+/* 완료 메모 약 5건 분량 고정 높이 + 세로 스크롤 항상 표시(scroll) */
+.memo-completed-modal-list {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+  height: 300px;
+  min-height: 300px;
+  max-height: 300px;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  padding: 0;
+  text-align: left;
+  -webkit-overflow-scrolling: touch;
+}
+.memo-completed-modal-item {
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+.memo-completed-modal-item:last-child {
+  border-bottom: none;
+}
+.memo-completed-modal-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 0;
+}
+.memo-completed-modal-item-actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.memo-completed-modal-title-text {
+  font-size: 12px;
+  font-weight: var(--title-font-weight);
+  color: #1a1a1a;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  line-height: 1.12;
+  margin: 0;
+  padding: 0;
+}
+.memo-completed-modal-body {
+  font-size: 11px;
+  line-height: 1.18;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0;
+  margin: 0;
+}
+.memo-completed-modal-uncomplete {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  font-size: 9px;
+  line-height: 1;
+  padding: 0 5px;
+  min-height: calc(12px * 1.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-family);
+}
+.memo-completed-modal-uncomplete:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.memo-completed-modal-delete {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 400;
+  padding: 0 5px;
+  min-height: calc(12px * 1.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-family);
+}
+.memo-completed-modal-delete:hover {
+  color: var(--danger, #c53030);
+  background: rgba(197, 48, 48, 0.06);
+}
+.memo-completed-modal-empty {
+  margin: 4px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.1;
+  text-align: center;
+}
+#memo-completed-modal .memo-completed-modal-actions {
+  margin-top: 6px;
 }
 .memo-editor .memo-item-list {
   min-height: 0;
@@ -2669,9 +3322,6 @@ header {
 .memo-editor .memo-incomplete-wrap .memo-item-list {
   flex: 1;
   min-height: 28px;
-}
-.memo-editor .memo-completed-wrap .memo-item-list {
-  flex: none;
 }
 
 .memo-view-all .memo-editor {
@@ -2706,11 +3356,11 @@ header {
   border: 1px solid var(--border);
 }
 
-/* 전체 보기: 분류 선택 시와 동일한 왼쪽 정렬(블록 안쪽 10px), 상하 여백 축소 */
+/* 전체 보기: 분류 블록 좌·우 안쪽 여백 축소 */
 #memo-view-all-content .memo-all-block {
   margin-top: 0;
-  margin-bottom: 6px;
-  padding: 0 10px;
+  margin-bottom: 3px;
+  padding: 0 2px 0 6px;
   border-radius: 4px;
 }
 #memo-view-all-content .memo-all-block-header {
@@ -2724,16 +3374,21 @@ header {
 }
 #memo-view-all-content .memo-item-row {
   margin-bottom: 0;
-  gap: 4px;
+  gap: 0;
 }
 #memo-view-all-content .memo-item-body {
   gap: 0;
 }
-#memo-view-all-content .memo-item-list {
-  padding: 0;
+#memo-view-all-content .memo-item-title-row {
+  gap: 0;
 }
 #memo-view-all-content .memo-item-title {
-  padding: 0 10px;
+  padding: 0 6px;
+  line-height: 1.12;
+  min-height: 0;
+}
+#memo-view-all-content .memo-item-list {
+  padding: 0;
 }
 /* 전체보기: 제목만 표시, 내용은 숨김 (호버 시 JS 툴팁으로 표시) */
 #memo-view-all-content .memo-item-content {
@@ -2745,6 +3400,28 @@ header {
   z-index: 10001;
   max-width: 320px;
   max-height: 200px;
+  padding: 2px 4px;
+  display: none;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+  font-family: var(--font-family);
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+/* 할일 내용(설명) 호버 팝업 */
+.todo-desc-tooltip {
+  position: fixed;
+  z-index: 10002;
+  max-width: 320px;
+  max-height: 220px;
   padding: 8px 10px;
   display: none;
   background: #fff;
@@ -2932,13 +3609,13 @@ header {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 4px;
-  cursor: grab;
+  margin-bottom: 12px;
+  cursor: default;
 }
 
 .memo-item-row.memo-item-dragging {
   opacity: 0.6;
-  cursor: grabbing;
+  cursor: default;
 }
 
 .memo-item-row.memo-item-over-top {
@@ -2950,11 +3627,13 @@ header {
   position: absolute;
   left: 0;
   right: 0;
-  top: -3px;
+  /* 스크롤 영역에서 잘리지 않도록 행 상단 안쪽에 표시 */
+  top: 0;
   height: 2px;
   background: rgba(107, 114, 128, 0.5);
   border-radius: 1px;
   z-index: 10;
+  pointer-events: none;
 }
 
 .memo-item-row.memo-item-over-bottom {
@@ -2966,11 +3645,12 @@ header {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -3px;
+  bottom: 0;
   height: 2px;
   background: rgba(107, 114, 128, 0.5);
   border-radius: 1px;
   z-index: 10;
+  pointer-events: none;
 }
 
 /* 메모 완료 시: 할일 완료와 동일 스타일(회색 배경 + 입력란 회색) */
@@ -3025,15 +3705,28 @@ header {
   color: var(--text);
 }
 
-/* 분류 선택 시: 전체보기와 동일한 제목·내용 줄간격 */
+/* 분류 선택 시: 메모 간·제목·내용 간격 축소 */
 .memo-col:not(.memo-view-all) .memo-item-row {
-  gap: 4px;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.memo-col:not(.memo-view-all) .memo-item-body {
+  gap: 0;
+  row-gap: 0;
+}
+.memo-col:not(.memo-view-all) .memo-item-title-row {
+  margin: 0;
+  padding-bottom: 0;
 }
 .memo-col:not(.memo-view-all) .memo-item-title {
   padding: 0 10px;
+  line-height: 1.2;
 }
 .memo-col:not(.memo-view-all) .memo-item-content {
-  padding: 2px 10px;
+  padding: 0 10px 0 24px;
+  line-height: 1.32;
+  margin-top: -3px;
+  min-height: 1.32em;
 }
 
 .memo-item-label {
@@ -3076,15 +3769,25 @@ header {
 .memo-col .memo-item-row.memo-item-important-blue .memo-item-title,
 .memo-col:not(.memo-view-all) .memo-item-row.memo-item-important-blue .memo-item-title {
   color: var(--info, #0d6efd);
-  font-weight: 400;
+  font-weight: 700;
   opacity: 1;
 }
 .memo-item-row.memo-item-important-red .memo-item-title,
 .memo-col .memo-item-row.memo-item-important-red .memo-item-title,
 .memo-col:not(.memo-view-all) .memo-item-row.memo-item-important-red .memo-item-title {
   color: var(--danger, #c53030);
-  font-weight: 400;
+  font-weight: 700;
   opacity: 1;
+}
+.memo-item-row.memo-item-important-blue .memo-item-content,
+.memo-col .memo-item-row.memo-item-important-blue .memo-item-content,
+.memo-col:not(.memo-view-all) .memo-item-row.memo-item-important-blue .memo-item-content {
+  font-weight: 700;
+}
+.memo-item-row.memo-item-important-red .memo-item-content,
+.memo-col .memo-item-row.memo-item-important-red .memo-item-content,
+.memo-col:not(.memo-view-all) .memo-item-row.memo-item-important-red .memo-item-content {
+  font-weight: 700;
 }
 
 .memo-item-body {
@@ -3092,7 +3795,7 @@ header {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
 
 .memo-item-title-row {
@@ -3102,12 +3805,40 @@ header {
   min-width: 0;
 }
 
+/* 체크박스 왼쪽 얇은 여백: 잡고 순서 이동 (여백 폭은 늘리지 않음) */
+.memo-item-drag-lead {
+  flex-shrink: 0;
+  display: block;
+  box-sizing: content-box;
+  width: 3px;
+  min-width: 3px;
+  min-height: 22px;
+  align-self: stretch;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 삭제(X) 버튼 오른쪽 얇은 여백 (폭 동일, 확장 없음) */
+.memo-item-drag-tail {
+  flex-shrink: 0;
+  display: block;
+  box-sizing: content-box;
+  width: 3px;
+  min-width: 3px;
+  min-height: 22px;
+  align-self: stretch;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .memo-item-title-row .memo-item-title {
   flex: 1;
   min-width: 0;
 }
 
-/* 제목·내용 텍스트 박스 왼쪽 위치 동일: 내용 박스를 제목 입력란과 같은 시작 위치로 */
+/* 제목·내용: 본문 텍스트를 제목보다 약간 오른쪽(들여쓰기) */
 .memo-item-title-row .memo-item-check {
   width: 1em;
   height: 1em;
@@ -3116,7 +3847,7 @@ header {
 
 .memo-item-title {
   width: 100%;
-  padding: 6px 10px;
+  padding: 4px 10px;
   border: none;
   border-radius: 0;
   font-family: var(--font-family);
@@ -3126,6 +3857,7 @@ header {
   line-height: 1.38;
   box-sizing: border-box;
   background: transparent;
+  cursor: text;
 }
 .memo-item-title:focus {
   outline: none;
@@ -3159,21 +3891,22 @@ header {
 .memo-item-content {
   margin-left: calc(1em + 2px + 22px + 2px);
   width: calc(100% - 1em - 2px - 22px - 2px);
-  padding: 4px 10px;
+  padding: 2px 10px 2px 24px;
   border: none;
   border-radius: 0;
   font-family: var(--font-family);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 400;
   color: var(--text);
-  line-height: 1.38;
+  line-height: 1.45;
   box-sizing: border-box;
   resize: none;
+  cursor: text;
   background: transparent;
-  min-height: 2.76em;
-  max-height: 2.76em;
-  height: 2.76em;
-  overflow-y: auto;
+  min-height: 1.45em;
+  max-height: none;
+  height: auto;
+  overflow-y: hidden;
 }
 .memo-item-content:focus {
   outline: none;
@@ -3181,7 +3914,7 @@ header {
   box-shadow: none;
 }
 
-/* 빈 내용: placeholder 12px, 볼드 제거, 회색 */
+/* 빈 내용: placeholder 본문과 동일 크기, 회색 */
 .memo-item-content::placeholder {
   font-size: 12px;
   font-weight: 400;
@@ -4081,6 +4814,103 @@ header {
   z-index: 10;
 }
 
+.memo-reorder-expired-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.memo-reorder-expired-title {
+  font-size: 12px;
+  font-weight: var(--title-font-weight);
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+.memo-reorder-expired-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+.memo-reorder-item.memo-reorder-item-expired {
+  cursor: default;
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+  opacity: 0.95;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.memo-reorder-item.memo-reorder-item-expired .memo-reorder-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.memo-reorder-expired-meta {
+  font-size: 10px;
+  color: #6b7280;
+  margin-left: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  flex: 1;
+  min-width: 0;
+}
+.memo-reorder-extend-btn {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  min-height: 24px;
+}
+/* 분류 구성: 기간 버튼 — 바탕색(🎨) 버튼과 동일한 박스·호버 */
+.memo-reorder-period-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+.memo-reorder-period-btn .memo-reorder-period-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.memo-reorder-period-btn .memo-reorder-period-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.memo-reorder-period-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.memo-tab-period-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.memo-tab-period-row input[type="date"] {
+  flex: 1;
+  min-width: 120px;
+  font-size: var(--font-size);
+}
+.memo-tab-period-sep {
+  color: var(--text-muted);
+  font-size: var(--font-size);
+}
+.memo-tab-period-hint {
+  margin: 6px 0 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
 .memo-reorder-deleted-wrap {
   margin-top: 12px;
   padding-top: 12px;
@@ -4165,6 +4995,27 @@ header {
   font-size: var(--font-size);
   font-weight: var(--title-font-weight);
   color: var(--text);
+}
+
+.modal-content h3.todo-repeat-modal-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.todo-repeat-modal-title-text {
+  flex-shrink: 0;
+}
+.todo-repeat-modal-todo-name {
+  font-size: 0.92em;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 55%;
 }
 
 .form-group {
