@@ -2592,6 +2592,9 @@ header {
   text-align: left;
   outline: none;
   box-shadow: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .todo-item-title-input:not(:placeholder-shown) {
@@ -2652,6 +2655,9 @@ header {
   text-align: left;
   outline: none;
   box-shadow: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .todo-item-desc-input:not(:placeholder-shown) {
@@ -3416,22 +3422,22 @@ header {
   pointer-events: none;
 }
 
-/* 할일 내용(설명) 호버 팝업 */
+/* 할일 제목·내용(설명) 호버 풍선말 — 안쪽 여백·외형은 메모 풍선말(.memo-content-tooltip)과 동일 */
 .todo-desc-tooltip {
   position: fixed;
   z-index: 10002;
   max-width: 320px;
-  max-height: 220px;
-  padding: 8px 10px;
+  max-height: 200px;
+  padding: 2px 4px;
   display: none;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
   font-family: var(--font-family);
-  font-size: var(--font-size);
+  font-size: 12px;
   color: var(--text);
-  line-height: 1.38;
+  line-height: 1.2;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-y: auto;

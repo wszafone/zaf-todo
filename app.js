@@ -2470,12 +2470,23 @@
           li.innerHTML = `<span class="cal-full-todo-icons" aria-hidden="true"><button type="button" class="cal-full-todo-complete${completeCls}" title="${completed ? '완료 (클릭 취소)' : '미완료'}">${completeIcon}</button><button type="button" class="cal-full-todo-important${importantCls}" title="${t.important === 'red' ? '중요 빨강 (클릭 해제)' : t.important === 'blue' ? '중요 파랑 (클릭 시 빨강)' : '중요 표시'}">${importantIcon}</button><button type="button" class="cal-full-todo-repeat${repeatCls}" title="${t.repeat && t.repeat !== 'none' ? '반복 설정됨 (클릭하여 변경)' : '반복'}">${repeatIcon}</button></span><span class="cal-full-todo-title${emptyTitleCls}" data-full-title="${escapeHtml(t.title || '')}" title="${escapeHtml(t.title || '')}">${escapeHtml(title)}</span><button type="button" class="cal-full-todo-del" data-id="${t.id}" data-date="${dkey}" aria-label="삭제">×</button>`;
           ul.appendChild(li);
           var descTrimFull = (t.desc || '').trim();
-          if (descTrimFull) {
-            li.addEventListener('mouseenter', function () {
-              showTodoDescTooltip(descTrimFull, li.getBoundingClientRect());
-            });
-            li.addEventListener('mouseleave', hideTodoDescTooltip);
-          }
+          var titleTrimFull = (t.title || '').trim();
+          li.addEventListener('mouseenter', function (e) {
+            var titleEl = e.target && e.target.closest && e.target.closest('.cal-full-todo-title');
+            if (titleEl) {
+              if (!isCalFullTodoTitleClipped(titleEl)) return;
+              var tx = (titleEl.dataset && titleEl.dataset.fullTitle != null) ? String(titleEl.dataset.fullTitle).trim() : titleTrimFull;
+              if (!tx) return;
+              showTodoDescTooltip(tx, titleEl.getBoundingClientRect());
+              return;
+            }
+            if (!descTrimFull) return;
+            var titleRef = li.querySelector('.cal-full-todo-title');
+            if (!titleRef) return;
+            if (!isTodoTextWiderThanPx(descTrimFull, titleRef.clientWidth, titleRef)) return;
+            showTodoDescTooltip(descTrimFull, li.getBoundingClientRect());
+          });
+          li.addEventListener('mouseleave', hideTodoDescTooltip);
         });
       }
       body.appendChild(cell);
@@ -2638,7 +2649,10 @@ delBtn.title = '삭제';
       openTodoModalFromTitleInput(this);
     });
     titleInput.addEventListener('mouseenter', function () {
-      showTodoDescTooltip(descInput.value, descInput.getBoundingClientRect());
+      if (!isTodoTextInputHorizontallyClipped(titleInput)) return;
+      var tit = (titleInput.value || '').trim();
+      if (!tit) return;
+      showTodoDescTooltip(tit, titleInput.getBoundingClientRect());
     });
     titleInput.addEventListener('mouseleave', hideTodoDescTooltip);
     descInput.addEventListener('change', saveTodoFields);
@@ -2647,7 +2661,10 @@ delBtn.title = '삭제';
       if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
     });
     descInput.addEventListener('mouseenter', function () {
-      showTodoDescTooltip(descInput.value, descInput.getBoundingClientRect());
+      if (!isTodoTextInputHorizontallyClipped(descInput)) return;
+      var d = (descInput.value || '').trim();
+      if (!d) return;
+      showTodoDescTooltip(d, descInput.getBoundingClientRect());
     });
     descInput.addEventListener('mouseleave', hideTodoDescTooltip);
     delBtn.addEventListener('click', (e) => {
@@ -2758,6 +2775,40 @@ delBtn.title = '삭제';
   }
 
   var todoDescTooltipHideTimer = null;
+
+  /** 한 줄 텍스트가 박스 너비를 넘겨 잘릴 때만 true (풍선말 표시 조건) */
+  function isTodoTextInputHorizontallyClipped(inputEl) {
+    if (!inputEl || inputEl.nodeName !== 'INPUT') return false;
+    var typ = String(inputEl.type || 'text').toLowerCase();
+    if (typ !== 'text' && typ !== 'search') return false;
+    var v = inputEl.value;
+    if (v == null || String(v).length === 0) return false;
+    return inputEl.scrollWidth > inputEl.clientWidth + 1;
+  }
+
+  /** 참조 요소와 동일 폰트로 한 줄 너비 측정 (달력 셀 등 input 없는 영역) */
+  function isTodoTextWiderThanPx(text, maxPx, fontRefEl) {
+    if (text == null || !String(text).trim() || !fontRefEl || !(maxPx > 0)) return false;
+    var cs = window.getComputedStyle(fontRefEl);
+    var div = document.createElement('div');
+    div.setAttribute('aria-hidden', 'true');
+    div.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:nowrap;visibility:hidden;pointer-events:none;font-size:' + cs.fontSize + ';font-family:' + cs.fontFamily + ';font-weight:' + cs.fontWeight + ';';
+    div.textContent = String(text);
+    document.body.appendChild(div);
+    var w = div.offsetWidth;
+    document.body.removeChild(div);
+    return w > maxPx + 1;
+  }
+
+  function isCalFullTodoTitleClipped(titleEl) {
+    if (!titleEl) return false;
+    try {
+      return titleEl.scrollWidth > titleEl.clientWidth + 1;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function getTodoDescTooltipEl() {
     var el = document.getElementById('todo-desc-tooltip');
     if (!el) {
