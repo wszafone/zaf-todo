@@ -68,9 +68,11 @@
             <button type="button" class="nav-btn cal-type-toggle-btn" id="cal-full-type-toggle" aria-label="양력/음력 전환" title="클릭 시 양력↔음력 전환">양력</button>
           </div>
           <div class="todo-view-header-inline" id="todo-view-header-inline" style="display:none;">
+            <button type="button" class="nav-btn" id="todo-three-col-week-prev" aria-label="일주일 전">〈〈</button>
             <button type="button" class="nav-btn" id="todo-three-col-prev" aria-label="이전 날">〈</button>
             <span class="todo-view-caption" id="todo-view-caption"></span>
             <button type="button" class="nav-btn" id="todo-three-col-next" aria-label="다음 날">〉</button>
+            <button type="button" class="nav-btn" id="todo-three-col-week-next" aria-label="일주일 후">〉〉</button>
             <button type="button" class="nav-btn nav-btn-today" id="todo-three-col-today" aria-label="오늘">오늘</button>
           </div>
         </div>
@@ -134,9 +136,7 @@
           <div class="memo-editor" id="memo-editor">
             <div class="memo-list-body">
               <div class="memo-incomplete-wrap"><ul class="memo-item-list" id="memo-item-list"></ul></div>
-              <div class="memo-completed-wrap">
-                <button type="button" class="memo-completed-count-btn" id="memo-completed-count-btn" hidden aria-label="완료된 메모 보기">완료 0</button>
-              </div>
+              <div class="memo-completed-wrap"></div>
             </div>
             <div class="memo-item-add-zone" id="memo-item-add-zone" title="클릭하여 메모 추가">⊕</div>
           </div>
@@ -336,7 +336,7 @@
 
   <!-- 완료된 메모 목록 (읽기 전용) -->
   <div class="modal" id="memo-completed-modal">
-    <div class="modal-content modal-sm memo-completed-modal-content" id="memo-completed-modal-content" style="max-width: 440px; display: flex; flex-direction: column;">
+    <div class="modal-content modal-sm memo-completed-modal-content" id="memo-completed-modal-content" style="max-width: min(920px, 96vw); display: flex; flex-direction: column;">
       <h3 id="memo-completed-modal-title">완료된 메모</h3>
       <div class="memo-completed-modal-category-row">
         <select id="memo-completed-modal-category" class="memo-completed-modal-category-select" title="분류 선택" aria-label="분류 선택"></select>
@@ -372,6 +372,36 @@
       <div class="modal-actions">
         <button type="button" class="btn-primary" id="memo-tab-save">저장</button>
         <button type="button" class="btn-secondary" id="memo-tab-cancel">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 반복 할일 수정 범위 모달 -->
+  <div class="modal" id="repeat-edit-modal">
+    <div class="modal-content modal-sm">
+      <h3>반복 할일 수정</h3>
+      <p>어느 범위에 적용할까요?</p>
+      <div class="form-group">
+        <label>
+          <input type="radio" name="repeat-edit-scope" value="single" checked>
+          이번 일정만 수정
+        </label>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="radio" name="repeat-edit-scope" value="after">
+          이번 일정 이후 모두 수정
+        </label>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="radio" name="repeat-edit-scope" value="all">
+          모든 반복 일정 수정
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="repeat-edit-confirm">적용</button>
+        <button type="button" class="btn-secondary" id="repeat-edit-cancel">취소</button>
       </div>
     </div>
   </div>

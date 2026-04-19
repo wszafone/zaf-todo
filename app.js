@@ -50,8 +50,19 @@
     syncKeyToFirebase(key, value);
   }
   const DEFAULT_MEMO_TABS = ['개인', '시타마치', '슈가맨워크', '부동산투자', '인공지능(AI)', '기타'];
-  const MEMO_PASTEL_COLORS = ['#dceefc', '#fffcc0', '#c8e8c9', '#fcd4df', '#b8ecf3', '#e8ccec', '#ffe9c4', '#b8e3df', '#ffd9cc', '#d4dae0'];
-  const MEMO_PASTEL_COLOR_NAMES = ['하늘색', '노란색', '연두색', '분홍색', '청록색', '연보라', '주황색', '민트색', '산호색', '연회색'];
+  // 분류 색: 기존/현재 사이의 "중간 채도" 팔레트
+  const MEMO_PASTEL_COLORS = [
+    '#ADD3F6', '#F4E895', '#9BD8A2', '#F2B2C8', '#7AD8E8', '#C8A8DA',
+    '#F4CC87', '#8BD4CC', '#F4B7A2', '#EAECF0', '#FFFFFF',
+    '#D6E9FA', '#F9F3CA', '#CDEBD0', '#F8D8E3', '#BCEBF3', '#E3D3EC',
+    '#F9E5C3', '#C5E9E5', '#F9DBD0', '#F4F5F7'
+  ];
+  const MEMO_PASTEL_COLOR_NAMES = [
+    '하늘색', '노란색', '연두색', '분홍색', '청록색', '연보라',
+    '주황색', '민트색', '산호색', '흰색', '순백색',
+    '연하늘색', '연노란색', '연연두색', '연분홍색', '연청록색', '연연보라',
+    '연주황색', '연민트색', '연산호색', '연흰색'
+  ];
   const SECTION_COLOR_INDEX = { morning: 0, lunch: 1, afternoon: 2, evening: 3 };
 
   function getColorSwatchTooltipEl() {
@@ -142,9 +153,82 @@
     const tabId = todo.memoTabId || getPersonalTabId();
     if (tabId && state.memoTabs && state.memoTabs.length) {
       const tab = state.memoTabs.find(x => x.id === tabId);
-      if (tab && typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9) return tab.colorIndex;
+      if (tab && typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 20) return tab.colorIndex;
     }
     return SECTION_COLOR_INDEX[section] ?? 0;
+  }
+
+  // 중요도 클릭 순환:
+  // 검정(볼드) -> 파란색 -> 파란색(볼드) -> 빨강 -> 빨강(볼드) -> 검정 -> (반복)
+  const IMPORTANT_ORDER = ['kb', 'blue', 'bb', 'red', 'rb', 'k'];
+  function normalizeImportantVal(v) {
+    if (v === true) return 'red';
+    if (v === 'blue' || v === 'red') return v;
+    if (v === false || v === null || v === undefined || v === '0' || v === 'false') return 'k';
+    if (v === 'k' || v === 'kb' || v === 'bb' || v === 'rb') return v;
+    return 'k';
+  }
+  function nextImportant(current) {
+    const c = normalizeImportantVal(current);
+    const i = IMPORTANT_ORDER.indexOf(c);
+    return IMPORTANT_ORDER[(i < 0 ? 0 : i + 1) % IMPORTANT_ORDER.length];
+  }
+  function todoImportantClassList(imp) {
+    const v = normalizeImportantVal(imp);
+    if (!v) return '';
+    if (v === 'k') return ' todo-item-important-k';
+    if (v === 'kb') return ' todo-item-important-kb';
+    if (v === 'blue') return ' todo-item-important-blue';
+    if (v === 'bb') return ' todo-item-important-blue-b';
+    if (v === 'red') return ' todo-item-important-red';
+    if (v === 'rb') return ' todo-item-important-red-b';
+    return '';
+  }
+  function todoImportantButtonClasses(imp) {
+    const v = normalizeImportantVal(imp);
+    if (!v) return '';
+    if (v === 'k') return ' important-k';
+    if (v === 'kb') return ' important-kb';
+    if (v === 'blue') return ' important-blue';
+    if (v === 'bb') return ' important-blue-b';
+    if (v === 'red') return ' important-red';
+    if (v === 'rb') return ' important-red-b';
+    return '';
+  }
+  function memoImportantClassList(imp) {
+    const v = normalizeImportantVal(imp);
+    if (!v) return '';
+    if (v === 'k') return ' memo-item-important-k';
+    if (v === 'kb') return ' memo-item-important-kb';
+    if (v === 'blue') return ' memo-item-important-blue';
+    if (v === 'bb') return ' memo-item-important-blue-b';
+    if (v === 'red') return ' memo-item-important-red';
+    if (v === 'rb') return ' memo-item-important-red-b';
+    return '';
+  }
+  function memoImportantButtonClasses(imp) {
+    return todoImportantButtonClasses(imp);
+  }
+  function calFullImportantClassList(imp) {
+    const v = normalizeImportantVal(imp);
+    if (!v) return '';
+    if (v === 'k') return ' cal-full-todo-important-k';
+    if (v === 'kb') return ' cal-full-todo-important-kb';
+    if (v === 'blue') return ' cal-full-todo-important-blue';
+    if (v === 'bb') return ' cal-full-todo-important-blue-b';
+    if (v === 'red') return ' cal-full-todo-important-red';
+    if (v === 'rb') return ' cal-full-todo-important-red-b';
+    return '';
+  }
+  function importantBtnTitle(imp) {
+    const v = normalizeImportantVal(imp);
+    if (v === 'rb') return '중요 빨강 굵게 (클릭 시 검정)';
+    if (v === 'red') return '중요 빨강 (클릭 시 굵게)';
+    if (v === 'bb') return '중요 파랑 굵게 (클릭 시 빨강)';
+    if (v === 'blue') return '중요 파랑 (클릭 시 굵게)';
+    if (v === 'kb') return '중요 검정 굵게 (클릭 시 파랑)';
+    if (v === 'k') return '중요 검정 (클릭 시 굵게)';
+    return '중요 표시';
   }
 
   let state = {
@@ -174,6 +258,7 @@
     memoReorderDropTarget: null,
     draggingMemoReorder: false,
     repeatDeleteTarget: null,
+    repeatEditPending: null,
     completedRepeatingInstances: {},
     viewMode: 'todo',
     todoViewCenterDate: null,
@@ -522,10 +607,16 @@
     if (t == null) return '';
     return String(t).replace(/\u00a0/g, ' ');
   }
+  function syncMemoRichPlaceholderClass(el) {
+    if (!el || !el.classList || !el.classList.contains('memo-item-content-rich')) return;
+    var plain = memoContentToPlain(el.innerHTML || '');
+    el.classList.toggle('memo-content-empty', !plain || !String(plain).trim());
+  }
   function setMemoItemContentHtml(el, raw) {
     if (!el) return;
     if (raw == null || raw === '') {
       el.innerHTML = '';
+      syncMemoRichPlaceholderClass(el);
       return;
     }
     var s = String(raw);
@@ -538,6 +629,7 @@
         .replace(/"/g, '&quot;')
         .replace(/\n/g, '<br>');
     }
+    syncMemoRichPlaceholderClass(el);
   }
   function getRichMemoEditorContaining(node) {
     if (!node) return null;
@@ -1106,8 +1198,7 @@
       state.todos = raw ? JSON.parse(raw) : {};
       Object.keys(state.todos).forEach(k => {
         (state.todos[k] || []).forEach(t => {
-          if (t.important === true) t.important = 'red';
-          if (t.important !== false && t.important !== 'blue' && t.important !== 'red') t.important = false;
+          t.important = normalizeImportantVal(t.important);
         });
       });
     } catch (_) {
@@ -1342,8 +1433,7 @@
       const raw = getFromStore(STORAGE_REPEATING);
       state.repeatingTodos = raw ? JSON.parse(raw) : [];
       state.repeatingTodos.forEach((t, idx) => {
-        if (t.important === true) t.important = 'red';
-        if (t.important !== false && t.important !== 'blue' && t.important !== 'red') t.important = false;
+        t.important = normalizeImportantVal(t.important);
         if (typeof t.order !== 'number' || isNaN(t.order)) t.order = idx * 10000;
         if (t.contentRevisions != null && !Array.isArray(t.contentRevisions)) delete t.contentRevisions;
         if (Array.isArray(t.contentRevisions)) {
@@ -1435,23 +1525,30 @@
   function getRepeatingContentForDate(r, dateKey) {
     if (!r || !dateKey) return { title: r ? (r.title || '') : '', desc: r ? (r.desc || '') : '' };
     const revs = r.contentRevisions;
+    let base;
     if (!revs || !Array.isArray(revs) || revs.length === 0) {
-      return { title: r.title != null ? r.title : '', desc: r.desc != null ? r.desc : '' };
-    }
-    let best = null;
-    for (let i = 0; i < revs.length; i++) {
-      const rev = revs[i];
-      if (!rev || rev.fromKey == null) continue;
-      const fk = String(rev.fromKey).slice(0, 10);
-      if (fk <= dateKey) {
-        if (!best || fk > String(best.fromKey).slice(0, 10)) best = rev;
+      base = { title: r.title != null ? r.title : '', desc: r.desc != null ? r.desc : '' };
+    } else {
+      let best = null;
+      for (let i = 0; i < revs.length; i++) {
+        const rev = revs[i];
+        if (!rev || rev.fromKey == null) continue;
+        const fk = String(rev.fromKey).slice(0, 10);
+        if (fk <= dateKey) {
+          if (!best || fk > String(best.fromKey).slice(0, 10)) best = rev;
+        }
       }
+      if (!best) base = { title: r.title != null ? r.title : '', desc: r.desc != null ? r.desc : '' };
+      else base = { title: best.title != null ? best.title : '', desc: best.desc != null ? best.desc : '' };
     }
-    if (!best) return { title: r.title != null ? r.title : '', desc: r.desc != null ? r.desc : '' };
-    return {
-      title: best.title != null ? best.title : '',
-      desc: best.desc != null ? best.desc : ''
-    };
+    const ov = (state.repeatingDayOverrides[dateKey] || {})[r.id];
+    if (ov && (ov.title !== undefined || ov.desc !== undefined)) {
+      return {
+        title: ov.title !== undefined ? ov.title : base.title,
+        desc: ov.desc !== undefined ? ov.desc : base.desc
+      };
+    }
+    return base;
   }
 
   /** 반복 할일: fromKey 날짜부터 이후 모든 occurrence 에 새 제목·내용 적용 (이전 날짜는 기존 대로) */
@@ -1506,7 +1603,8 @@
           section: effSection,
           title: text.title,
           desc: text.desc,
-          completed: !!state.completedRepeatingInstances[instanceId]
+          completed: !!state.completedRepeatingInstances[instanceId],
+          memoTabId: (ov.memoTabId != null && String(ov.memoTabId).length) ? ov.memoTabId : t.memoTabId
         };
         if (typeof ov.order === 'number' && !isNaN(ov.order)) inst.order = ov.order;
         list.push(inst);
@@ -1537,17 +1635,23 @@
 
   const TODO_SECTIONS = ['morning', 'lunch', 'afternoon', 'evening'];
 
-  /** 신규 반복 할일: 해당 날짜·섹션(오전/점심/오후/저녁) 미완료 목록 맨 위에 오도록 order. 이후 드래그 시 repeatingDayOverrides.order 로 조정 */
+  /** 신규 반복 할일: 반복 템플릿들끼리만 비교해 순서를 맞추어 다른 날에도 동일 상대 순서 유지 */
   function getOrderForNewRepeatingTodoAtSectionTop(key, section, excludeTodoId) {
-    if (!key || !TODO_SECTIONS.includes(section)) return 0;
-    const by = getTodosForDate(key);
-    const items = (by[section] || []).filter(t => !t.completed && (!excludeTodoId || String(t.id) !== String(excludeTodoId)));
-    let minO = Infinity;
-    items.forEach(function (t) {
-      if (typeof t.order === 'number' && !isNaN(t.order)) minO = Math.min(minO, t.order);
+    // 요구사항: 해당 날짜(key)에 표시되는 모든 반복일정(오전/점심/오후/저녁) 다음에 등록
+    if (!key) return 0;
+    const reps = (state.repeatingTodos || []).filter(function (r) {
+      return r && r.repeat && r.repeat !== 'none' &&
+        repeatingAppliesToDate(r, key) &&
+        (!excludeTodoId || String(r.id) !== String(excludeTodoId));
     });
-    if (minO === Infinity) return 0;
-    return minO - 1000;
+    let maxO = -Infinity;
+    reps.forEach(function (t) {
+      const ov = (state.repeatingDayOverrides && state.repeatingDayOverrides[key] && state.repeatingDayOverrides[key][t.id]) ? state.repeatingDayOverrides[key][t.id] : null;
+      const effOrder = (ov && typeof ov.order === 'number' && !isNaN(ov.order)) ? ov.order : t.order;
+      if (typeof effOrder === 'number' && !isNaN(effOrder)) maxO = Math.max(maxO, effOrder);
+    });
+    if (maxO === -Infinity) return 0;
+    return maxO + 1000;
   }
 
   function clearRepeatingDayOrderOverride(key, realId) {
@@ -1584,6 +1688,17 @@
 
   function getSectionTodoListForMove(key, section) {
     return getVisibleSectionTodosForMove(key, section);
+  }
+
+  /** 병합(반복+일반) 순서상 삽입 슬롯 → 해당 섹션의 비반복 일반 할일만 splice할 인덱스 */
+  function mergeSlotToNonRepeatInsertIndex(key, section, mergeSlot) {
+    const vis = getVisibleSectionTodosForMove(key, section);
+    const lim = Math.max(0, Math.min(mergeSlot | 0, vis.length));
+    let c = 0;
+    for (let i = 0; i < lim; i++) {
+      if (!isTodoRepeatingInstanceId(vis[i].id)) c++;
+    }
+    return c;
   }
 
   function normalizeOrdersInSection(key, section) {
@@ -1743,14 +1858,19 @@
     const [moved] = fromAll.splice(fromIndex, 1);
     state.todos[fromKey] = fromAll.length ? fromAll : [];
     ensureTodoOrderForKey(fromKey);
+    const fromSection = moved.section || 'morning';
     moved.section = toSection;
     const toAll = state.todos[toKey] || [];
     const toNonRepeat = toAll.filter(t => !isRepeatingInstance(t.id));
     const bySec = { morning: [], lunch: [], afternoon: [], evening: [] };
     toNonRepeat.forEach(t => { if (bySec[t.section]) bySec[t.section].push(t); });
+    // 화면에서 보이는 정렬(=order 기반)과 동일하게 맞춰야 드래그 위치가 다른 날짜에서도 정확함
+    TODO_SECTIONS.forEach(sec => {
+      if (bySec[sec]) bySec[sec].sort(todoSortOrder);
+    });
     const targetList = bySec[toSection] || [];
-    const insertAt = Math.max(0, Math.min(toIndexInSection, targetList.length));
-    targetList.splice(insertAt, 0, moved);
+    const insertAt = mergeSlotToNonRepeatInsertIndex(toKey, toSection, toIndexInSection);
+    targetList.splice(Math.max(0, Math.min(insertAt, targetList.length)), 0, moved);
     bySec[toSection] = targetList;
     const nonRepeatingOrdered = TODO_SECTIONS.flatMap(s => bySec[s] || []);
     const repeatingTo = toAll.filter(t => isRepeatingInstance(t.id));
@@ -1758,17 +1878,11 @@
     nonRepeatingOrdered.forEach(t => { if (bySecWithRepeat[t.section]) bySecWithRepeat[t.section].push(t); });
     repeatingTo.forEach(t => { if (bySecWithRepeat[t.section]) bySecWithRepeat[t.section].push(t); });
     state.todos[toKey] = TODO_SECTIONS.flatMap(s => bySecWithRepeat[s] || []);
-    // 섹션 내부 배열 순서를 기준으로 order 값을 재부여:
-    // getTodosForDate가 todoSortOrder(order)로 정렬하므로, 여기서 order를 맞춰야 UI 순서가 유지됨.
-    const reapplyOrdersForKey = (k) => {
-      const list = state.todos[k] || [];
-      TODO_SECTIONS.forEach((sec) => {
-        const items = list.filter(t => t.section === sec);
-        items.forEach((t, i) => { t.order = i * 1000; });
-      });
-    };
-    reapplyOrdersForKey(fromKey);
-    reapplyOrdersForKey(toKey);
+    // 날짜 변경 드래그 후에도 UI 순서와 order 병합 순서가 일치하도록 섹션 order를 다시 정규화
+    TODO_SECTIONS.forEach(sec => {
+      normalizeOrdersInSection(fromKey, sec);
+      normalizeOrdersInSection(toKey, sec);
+    });
     saveTodos();
     renderTodos();
     if (state.viewMode === 'calendarFull') renderCalendarFull();
@@ -2134,7 +2248,7 @@
       rangeStart: payload.rangeStart || '',
       rangeEnd: payload.rangeEnd || '',
       rangeDays: rangeDays,
-      important: (payload.important === 'blue' || payload.important === 'red') ? payload.important : false,
+      important: normalizeImportantVal(payload.important),
       completed: false,
       order: state.todos[key].length,
       memoTabId: payload.memoTabId || undefined
@@ -2147,12 +2261,6 @@
     }
     saveTodos();
     renderTodos();
-  }
-
-  function nextImportant(current) {
-    if (!current || current === '0' || current === 'false') return 'blue';
-    if (current === 'blue') return 'red';
-    return false;
   }
   function setTodoImportant(id, important, fromKey) {
     const key = fromKey !== undefined ? fromKey : dateKey(state.selectedDate);
@@ -2375,7 +2483,7 @@
 
   function setSelectedDate(d) {
     state.selectedDate = d;
-    if (state.viewMode === 'todo') state.todoViewCenterDate = d;
+    state.todoViewCenterDate = d;
     renderCalendar();
     const el = document.getElementById('selected-date');
     if (el) el.textContent = d ? dateKey(d) : '';
@@ -2439,7 +2547,7 @@
         dkey = dateKey(prevMonth);
         if (getHolidayName(dkey)) cell.classList.add('cal-holiday');
         cell.dataset.date = dkey;
-        cell.innerHTML = fullDayHeadHtml(prevMonth.getDate(), dkey, false);
+        cell.innerHTML = fullDayHeadHtml(prevMonth.getDate(), dkey, true);
       } else if (dayCount < daysInMonth) {
         dayCount++;
         dkey = `${y}-${String(m + 1).padStart(2, '0')}-${String(dayCount).padStart(2, '0')}`;
@@ -2453,7 +2561,7 @@
         dkey = dateKey(nextMonth);
         if (getHolidayName(dkey)) cell.classList.add('cal-holiday');
         cell.dataset.date = dkey;
-        cell.innerHTML = fullDayHeadHtml(nextMonth.getDate(), dkey, false);
+        cell.innerHTML = fullDayHeadHtml(nextMonth.getDate(), dkey, true);
       }
 
       const ul = cell.querySelector('.cal-full-todos');
@@ -2468,7 +2576,7 @@
           const li = document.createElement('li');
           li.className = 'cal-full-day-todo todo-item cal-full-todo-' + section + ' todo-bg-' + colorIdx +
             (completed ? ' cal-full-todo-completed todo-item-completed' : '') +
-            (t.important === 'blue' ? ' cal-full-todo-important-blue' : t.important === 'red' ? ' cal-full-todo-important-red' : '') +
+            calFullImportantClassList(t.important) +
             (t.repeat && t.repeat !== 'none' ? ' cal-full-todo-repeat-on' : '');
           li.draggable = true;
           li.dataset.id = t.id;
@@ -2476,21 +2584,23 @@
           li.dataset.section = section;
           li.dataset.index = String(idxInSection);
           li.dataset.completed = completed ? '1' : '0';
-          li.dataset.important = t.important || '0';
+          li.dataset.important = normalizeImportantVal(t.important) === false ? '0' : String(normalizeImportantVal(t.important));
           const realId = String(t.id).includes('_') ? String(t.id).split('_').slice(0, -1).join('_') : t.id;
           li.dataset.realId = realId;
 
           const title = (t.title || '제목').slice(0, 18) + ((t.title || '').length > 18 ? '…' : '');
           const emptyTitleCls = !(t.title && t.title.trim()) ? ' cal-full-todo-title-empty' : '';
-          const importantIcon = (t.important === 'blue' || t.important === 'red') ? '★' : '☆';
+          const impV = normalizeImportantVal(t.important);
+          // 검정(k) 상태일 때는 빈 별표(☆) 표시
+          const importantIcon = impV && impV !== 'k' ? '★' : '☆';
           const repeatIcon = (t.repeat && t.repeat !== 'none') ? '↻' : '↺';
           const completeIcon = completed ? '✓' : '☐';
-          const importantCls = t.important === 'blue' ? ' cal-full-todo-important-blue' : t.important === 'red' ? ' cal-full-todo-important-red' : '';
+          const importantCls = calFullImportantClassList(t.important);
           const repeatCls = (t.repeat && t.repeat !== 'none') ? ' cal-full-todo-repeat-on' : '';
           const completeCls = completed ? ' cal-full-todo-complete-on' : '';
           li.innerHTML =
-            `<span class="cal-full-todo-icons" aria-hidden="true"><button type="button" class="cal-full-todo-complete${completeCls}" title="${completed ? '완료 (클릭 취소)' : '미완료'}">${completeIcon}</button><button type="button" class="cal-full-todo-important${importantCls}" title="${t.important === 'red' ? '중요 빨강 (클릭 해제)' : t.important === 'blue' ? '중요 파랑 (클릭 시 빨강)' : '중요 표시'}">${importantIcon}</button><button type="button" class="cal-full-todo-repeat${repeatCls}" title="${t.repeat && t.repeat !== 'none' ? '반복 설정됨 (클릭하여 변경)' : '반복'}">${repeatIcon}</button></span>` +
-            `<span class="cal-full-todo-title${emptyTitleCls}" data-full-title="${escapeHtml(t.title || '')}" title="${escapeHtml(t.title || '')}">${escapeHtml(title)}</span>` +
+            `<span class="cal-full-todo-icons" aria-hidden="true"><button type="button" class="cal-full-todo-complete${completeCls}" title="${completed ? '완료 (클릭 취소)' : '미완료'}">${completeIcon}</button><button type="button" class="cal-full-todo-important${importantCls}" title="${importantBtnTitle(t.important)}">${importantIcon}</button><button type="button" class="cal-full-todo-repeat${repeatCls}" title="${t.repeat && t.repeat !== 'none' ? '반복 설정됨 (클릭하여 변경)' : '반복'}">${repeatIcon}</button></span>` +
+            `<span class="cal-full-todo-title${emptyTitleCls}" data-full-title="${escapeHtml(t.title || '')}">${escapeHtml(title)}</span>` +
             `<button type="button" class="cal-full-todo-del" data-id="${t.id}" data-date="${dkey}" aria-label="삭제">×</button>`;
 
           ul.appendChild(li);
@@ -2500,17 +2610,16 @@
           li.addEventListener('mouseenter', function (e) {
             var titleEl = e.target && e.target.closest && e.target.closest('.cal-full-todo-title');
             if (titleEl) {
-              // 달력: 제목 hover 시 "내용(desc)"만 표시
-              if (!descTrimFull) return;
-              // 요청: 제목 바로 "뒤(아래)"에 풍선창 표시
-              showTodoDescTooltip(descTrimFull, titleEl.getBoundingClientRect(), 'below');
+              if (titleTrimFull && isCalFullTodoTitleClipped(titleEl)) {
+                showTodoDescTooltip(titleTrimFull, titleEl.getBoundingClientRect(), 'below');
+              }
               return;
             }
             if (!descTrimFull) return;
             var titleRef = li.querySelector('.cal-full-todo-title');
             if (!titleRef) return;
             if (!isTodoTextWiderThanPx(descTrimFull, titleRef.clientWidth, titleRef)) return;
-            showTodoDescTooltip(descTrimFull, li.getBoundingClientRect());
+            showTodoDescTooltip(descTrimFull, titleRef.getBoundingClientRect(), 'below');
           });
           li.addEventListener('mouseleave', hideTodoDescTooltip);
         }
@@ -2589,7 +2698,7 @@
     const opts = options || {};
     const li = document.createElement('li');
     const colorIdx = getTodoColorIndex(t, section);
-    li.className = 'todo-item todo-bg-' + colorIdx + (completed ? ' todo-item-completed' : '') + (t.important === 'blue' ? ' todo-item-important-blue' : t.important === 'red' ? ' todo-item-important-red' : '');
+    li.className = 'todo-item todo-bg-' + colorIdx + (completed ? ' todo-item-completed' : '') + todoImportantClassList(t.important);
     li.dataset.id = t.id;
     li.dataset.section = section;
     li.dataset.index = String(idx);
@@ -2624,16 +2733,17 @@
     completeBtn.draggable = false;
     const importantBtn = document.createElement('button');
     importantBtn.type = 'button';
-    importantBtn.className = 'todo-important-toggle' + (t.important === 'blue' ? ' important-blue' : t.important === 'red' ? ' important-red' : '');
+    importantBtn.className = 'todo-important-toggle' + todoImportantButtonClasses(t.important);
     importantBtn.dataset.id = t.id;
-    importantBtn.dataset.important = t.important || 'false';
-    importantBtn.title = t.important === 'red' ? '중요 빨강 (클릭 해제)' : t.important === 'blue' ? '중요 파랑 (클릭 시 빨강)' : '중요 표시';
+    importantBtn.dataset.important = normalizeImportantVal(t.important) === false ? 'false' : String(normalizeImportantVal(t.important));
+    importantBtn.title = importantBtnTitle(t.important);
     importantBtn.setAttribute('aria-label', '중요');
     importantBtn.draggable = false;
-    importantBtn.textContent = (t.important === 'blue' || t.important === 'red') ? '★' : '☆';
+    const impV = normalizeImportantVal(t.important);
+    // 요구사항: 제목이 검정(=k)일 때는 중요 버튼을 빈 별표(☆)로 표시
+    importantBtn.textContent = impV && impV !== 'k' ? '★' : '☆';
     const categorySelect = document.createElement('select');
-    categorySelect.className = 'todo-category-select';
-    categorySelect.title = '분류(분류관리)';
+    categorySelect.className = 'todo-category-select no-delayed-tooltip';
     categorySelect.draggable = false;
     (state.memoTabs || []).forEach(tab => {
       if (!isMemoTabInActivePeriod(tab)) return;
@@ -2677,7 +2787,7 @@ delBtn.title = '삭제';
     titleInput.addEventListener('change', saveTodoFields);
     titleInput.addEventListener('blur', saveTodoFields);
     titleInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+      if (e.key === 'Enter') { e.preventDefault(); descInput.focus(); }
     });
     titleInput.addEventListener('dblclick', function (e) {
       e.preventDefault();
@@ -2960,15 +3070,10 @@ delBtn.title = '삭제';
     } else if (overCalFullDay) {
       const key = overCalFullDay.dataset.date;
       overCalFullDay.classList.add('cal-full-day-drag-over');
-      const appendSection = 'morning';
-      const appendIdx = key ? getSectionTodoListForMove(key, appendSection).length : 0;
-      state.todoDropTarget = { el: null, insertAbove: false, section: appendSection, index: appendIdx, key };
-
-      // 달력 셀 빈 영역 위에서도 "회색 줄"이 보이게:
-      // 해당 날짜 셀 내부의 첫/마지막 todo 기준으로 drag-over-top/bottom을 표시한다.
       const items = Array.from(overCalFullDay.querySelectorAll('.cal-full-day-todo:not(.cal-full-more)'));
+      let appendSection = 'morning';
+      let appendIdx = key ? getSectionTodoListForMove(key, 'morning').length : 0;
       if (items.length > 0) {
-        // y 기준으로 가장 가까운 앵커를 찾는다.
         let anchor = null;
         let insertAbove = false;
         for (let i = 0; i < items.length; i++) {
@@ -2985,10 +3090,13 @@ delBtn.title = '삭제';
           insertAbove = false;
         }
         if (anchor) {
+          appendSection = anchor.dataset.section || 'morning';
+          appendIdx = computeTodoSectionInsertIndexBeforeRemoval(key, appendSection, anchor, insertAbove);
           anchor.classList.toggle('drag-over-top', insertAbove);
           anchor.classList.toggle('drag-over-bottom', !insertAbove);
         }
       }
+      state.todoDropTarget = { el: null, insertAbove: false, section: appendSection, index: appendIdx, key };
     } else {
       state.todoDropTarget = null;
     }
@@ -3201,7 +3309,7 @@ delBtn.title = '삭제';
         e.preventDefault();
         e.stopPropagation();
         const id = btn.dataset.id;
-        const current = btn.dataset.important === 'false' ? false : btn.dataset.important;
+        const current = normalizeImportantVal(btn.dataset.important);
         const next = nextImportant(current);
         const li = btn.closest('.todo-item');
         const fromKey = li && li.dataset ? (li.dataset.dateKey || undefined) : undefined;
@@ -3323,10 +3431,66 @@ delBtn.title = '삭제';
       memoTabId: memoTabId || getPersonalTabId() || undefined
     };
     if (state.editingTodoId) payload.id = state.editingTodoId;
+    const repEdit = state.editingTodoId && state.repeatingTodos.find(r => r.id === state.editingTodoId);
+    if (repEdit && repEdit.repeat && repEdit.repeat !== 'none') {
+      state.repeatEditPending = { payload, key: dateKey(state.selectedDate) };
+      document.getElementById('todo-modal').classList.remove('show');
+      const rem = document.getElementById('repeat-edit-modal');
+      if (rem) {
+        rem.classList.add('show');
+        rem.querySelectorAll('input[name="repeat-edit-scope"]').forEach(function (r) { r.checked = r.value === 'single'; });
+      }
+      return;
+    }
     addOrUpdateTodo(payload);
     closeTodoModal();
     if (state.viewMode === 'calendarFull') renderCalendarFull();
   });
+
+  function closeRepeatEditModal() {
+    const rem = document.getElementById('repeat-edit-modal');
+    if (rem) rem.classList.remove('show');
+    state.repeatEditPending = null;
+    state.editingTodoId = null;
+  }
+  function applyRepeatEditConfirm() {
+    const pending = state.repeatEditPending;
+    if (!pending) return;
+    const scopeEl = document.querySelector('input[name="repeat-edit-scope"]:checked');
+    const scope = scopeEl ? scopeEl.value : 'single';
+    const { payload, key } = pending;
+    const realId = payload.id;
+    const rep = state.repeatingTodos.find(r => r.id === realId);
+    if (!rep) {
+      addOrUpdateTodo(payload);
+      closeRepeatEditModal();
+      closeTodoModal();
+      if (state.viewMode === 'calendarFull') renderCalendarFull();
+      return;
+    }
+    pushUndoSnapshot();
+    if (scope === 'single') {
+      if (!state.repeatingDayOverrides[key]) state.repeatingDayOverrides[key] = {};
+      const cur = state.repeatingDayOverrides[key][realId] || {};
+      state.repeatingDayOverrides[key][realId] = {
+        ...cur,
+        title: payload.title,
+        desc: payload.desc,
+        section: payload.section,
+        memoTabId: payload.memoTabId || rep.memoTabId
+      };
+      saveRepeatingDayOverrides();
+    } else {
+      if (scope === 'all') delete rep.contentRevisions;
+      addOrUpdateTodo(payload);
+    }
+    closeRepeatEditModal();
+    closeTodoModal();
+    renderTodos();
+    if (state.viewMode === 'calendarFull') renderCalendarFull();
+  }
+  document.getElementById('repeat-edit-confirm') && document.getElementById('repeat-edit-confirm').addEventListener('click', applyRepeatEditConfirm);
+  document.getElementById('repeat-edit-cancel') && document.getElementById('repeat-edit-cancel').addEventListener('click', closeRepeatEditModal);
 
   document.getElementById('todo-cancel').addEventListener('click', closeTodoModal);
 
@@ -3415,25 +3579,25 @@ delBtn.title = '삭제';
       const parsed = raw ? JSON.parse(raw) : [];
       state.memoTabs = parsed.map((t, i) => {
         const tab = typeof t === 'string' ? { id: 'tab_' + i, name: t } : { id: t.id || 'tab_' + i, name: t.name || '' };
-        const colorIndex = typeof t === 'object' && typeof t.colorIndex === 'number' && t.colorIndex >= 0 && t.colorIndex <= 9 ? t.colorIndex : i % 10;
+        const colorIndex = typeof t === 'object' && typeof t.colorIndex === 'number' && t.colorIndex >= 0 && t.colorIndex <= 20 ? t.colorIndex : i % 21;
         const startDate = typeof t === 'object' && t.startDate ? String(t.startDate).slice(0, 10) : '';
         const endDate = typeof t === 'object' && t.endDate ? String(t.endDate).slice(0, 10) : '';
         return { ...tab, colorIndex, startDate, endDate };
       }).filter(t => t.name);
-      if (!state.memoTabs.length) state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 10, startDate: '', endDate: '' }));
+      if (!state.memoTabs.length) state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 21, startDate: '', endDate: '' }));
     } catch (_) {
-      state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 10, startDate: '', endDate: '' }));
+      state.memoTabs = DEFAULT_MEMO_TABS.map((name, i) => ({ id: 'tab_' + i, name, colorIndex: i % 21, startDate: '', endDate: '' }));
     }
     if (!state.memoTabs.some(t => t.name === '개인')) {
       const idx = state.memoTabs.length;
-      state.memoTabs.push({ id: 'tab_' + idx, name: '개인', colorIndex: idx % 10, startDate: '', endDate: '' });
+        state.memoTabs.push({ id: 'tab_' + idx, name: '개인', colorIndex: idx % 21, startDate: '', endDate: '' });
     }
     try {
       const rawDeleted = getFromStore(STORAGE_DELETED_MEMO_TABS);
       const parsedDeleted = rawDeleted ? JSON.parse(rawDeleted) : [];
       state.deletedMemoTabs = Array.isArray(parsedDeleted) ? parsedDeleted.map((t, i) => {
         const tab = typeof t === 'string' ? { id: 'tab_del_' + i, name: t } : { id: t.id || 'tab_del_' + i, name: t.name || '' };
-        const colorIndex = typeof t === 'object' && typeof t.colorIndex === 'number' && t.colorIndex >= 0 && t.colorIndex <= 9 ? t.colorIndex : 0;
+        const colorIndex = typeof t === 'object' && typeof t.colorIndex === 'number' && t.colorIndex >= 0 && t.colorIndex <= 20 ? t.colorIndex : 0;
         const startDate = typeof t === 'object' && t.startDate ? String(t.startDate).slice(0, 10) : '';
         const endDate = typeof t === 'object' && t.endDate ? String(t.endDate).slice(0, 10) : '';
         return { ...tab, colorIndex, startDate, endDate };
@@ -3455,7 +3619,7 @@ delBtn.title = '삭제';
       if (!isMemoTabInActivePeriod(tab)) return;
       const item = document.createElement('div');
       item.className = 'calendar-category-item';
-      const idx = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9 ? tab.colorIndex : 0;
+      const idx = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 20 ? tab.colorIndex : 0;
       item.style.backgroundColor = MEMO_PASTEL_COLORS[idx];
       const name = document.createElement('span');
       name.className = 'calendar-category-name';
@@ -3486,7 +3650,7 @@ delBtn.title = '삭제';
           title: typeof x.title === 'string' ? x.title : (typeof x.text === 'string' ? x.text : ''),
           completed: !!x.completed,
           content: typeof x.content === 'string' ? x.content : '',
-          important: (x.important === 'blue' || x.important === 'red') ? x.important : (x.important === true ? 'red' : false)
+          important: normalizeImportantVal(x.important)
         };
       });
     }
@@ -3594,7 +3758,7 @@ delBtn.title = '삭제';
     const m = items.find(x => x.id === itemId);
     if (m) {
       pushUndoSnapshot();
-      m.important = important;
+      m.important = normalizeImportantVal(important);
       saveMemos();
       if (state.viewAllMemos) showMemoContent();
       else if (state.activeMemoTabId === tabId) renderMemoItemList(tabId);
@@ -3609,6 +3773,10 @@ delBtn.title = '삭제';
     const select = document.getElementById('memo-completed-modal-category');
     if (!select) return;
     select.innerHTML = '';
+    var optAll = document.createElement('option');
+    optAll.value = '__all__';
+    optAll.textContent = '전체';
+    select.appendChild(optAll);
     (state.memoTabs || []).forEach(function (tab) {
       if (!isMemoTabInActivePeriod(tab)) return;
       const completedCount = ensureMemoItems(tab.id).reduce(function (acc, m) {
@@ -3619,14 +3787,22 @@ delBtn.title = '삭제';
       opt.textContent = completedCount > 0 ? (tab.name + '\u2002\u2002\u2002' + completedCount) : tab.name;
       select.appendChild(opt);
     });
-    const want = selectedTabId && getMemoTabById(selectedTabId) && isMemoTabInActivePeriod(getMemoTabById(selectedTabId))
-      ? String(selectedTabId)
-      : '';
-    if (want && Array.prototype.some.call(select.options, function (o) { return o.value === want; })) {
-      select.value = want;
-    } else if (select.options.length) {
-      select.selectedIndex = 0;
+    // 기본: 모달 호출자가 준 분류를 우선 반영
+    if (selectedTabId === '__all__') {
+      select.value = '__all__';
+      return;
     }
+    var want = '__all__';
+    if (selectedTabId && selectedTabId !== '__all__') {
+      const t = getMemoTabById(selectedTabId);
+      if (t && isMemoTabInActivePeriod(t)) want = String(selectedTabId);
+    }
+    if (want !== '__all__' && Array.prototype.some.call(select.options, function (o) { return o.value === want; })) {
+      select.value = want;
+      return;
+    }
+    // 분류 옵션이 없으면 전체로 폴백
+    select.value = '__all__';
   }
 
   function renderMemoCompletedModalList(tabId) {
@@ -3634,6 +3810,58 @@ delBtn.title = '삭제';
     const listEl = document.getElementById('memo-completed-modal-list');
     if (!listEl) return;
     listEl.innerHTML = '';
+    function appendMemoCompletedCard(tabIdStr, m) {
+      const card = document.createElement('div');
+      card.className = 'memo-completed-modal-item';
+      const head = document.createElement('div');
+      head.className = 'memo-completed-modal-item-head';
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'memo-completed-modal-title-text';
+      titleDiv.textContent = (m.title && String(m.title).trim()) ? m.title : '(제목 없음)';
+      const actions = document.createElement('span');
+      actions.className = 'memo-completed-modal-item-actions';
+      const unBtn = document.createElement('button');
+      unBtn.type = 'button';
+      unBtn.className = 'memo-completed-modal-uncomplete';
+      unBtn.textContent = '미완료';
+      unBtn.dataset.tabId = String(tabIdStr);
+      unBtn.dataset.itemId = String(m.id);
+      unBtn.title = '다시 미완료 목록으로';
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'memo-completed-modal-delete';
+      delBtn.textContent = '×';
+      delBtn.dataset.tabId = String(tabIdStr);
+      delBtn.dataset.itemId = String(m.id);
+      delBtn.title = '삭제';
+      delBtn.setAttribute('aria-label', '삭제');
+      actions.appendChild(unBtn);
+      actions.appendChild(delBtn);
+      head.appendChild(titleDiv);
+      head.appendChild(actions);
+      const body = document.createElement('div');
+      body.className = 'memo-completed-modal-body';
+      body.textContent = memoContentToPlain(m.content || '');
+      card.appendChild(head);
+      card.appendChild(body);
+      listEl.appendChild(card);
+    }
+    if (tabId === '__all__') {
+      (state.memoTabs || []).forEach(function (tab) {
+        if (!isMemoTabInActivePeriod(tab)) return;
+        sortMemoItemsCompletedLast(ensureMemoItems(tab.id)).filter(function (m) { return m.completed; }).forEach(function (m) {
+          appendMemoCompletedCard(tab.id, m);
+        });
+      });
+      if (!listEl.querySelector('.memo-completed-modal-item')) {
+        const empty = document.createElement('p');
+        empty.className = 'memo-completed-modal-empty';
+        empty.textContent = '완료된 메모가 없습니다.';
+        listEl.appendChild(empty);
+      }
+      if (modal) modal.dataset.memoTabId = '__all__';
+      return;
+    }
     if (!tabId) {
       const empty = document.createElement('p');
       empty.className = 'memo-completed-modal-empty';
@@ -3652,40 +3880,7 @@ delBtn.title = '삭제';
     if (modal) modal.dataset.memoTabId = String(tabId);
     const completed = sortMemoItemsCompletedLast(ensureMemoItems(tabId)).filter(function (m) { return m.completed; });
     completed.forEach(function (m) {
-      const card = document.createElement('div');
-      card.className = 'memo-completed-modal-item';
-      const head = document.createElement('div');
-      head.className = 'memo-completed-modal-item-head';
-      const titleDiv = document.createElement('div');
-      titleDiv.className = 'memo-completed-modal-title-text';
-      titleDiv.textContent = (m.title && String(m.title).trim()) ? m.title : '(제목 없음)';
-      const actions = document.createElement('span');
-      actions.className = 'memo-completed-modal-item-actions';
-      const unBtn = document.createElement('button');
-      unBtn.type = 'button';
-      unBtn.className = 'memo-completed-modal-uncomplete';
-      unBtn.textContent = '미완료';
-      unBtn.dataset.tabId = String(tabId);
-      unBtn.dataset.itemId = String(m.id);
-      unBtn.title = '다시 미완료 목록으로';
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'memo-completed-modal-delete';
-      delBtn.textContent = '×';
-      delBtn.dataset.tabId = String(tabId);
-      delBtn.dataset.itemId = String(m.id);
-      delBtn.title = '삭제';
-      delBtn.setAttribute('aria-label', '삭제');
-      actions.appendChild(unBtn);
-      actions.appendChild(delBtn);
-      head.appendChild(titleDiv);
-      head.appendChild(actions);
-      const body = document.createElement('div');
-      body.className = 'memo-completed-modal-body';
-      body.textContent = memoContentToPlain(m.content || '');
-      card.appendChild(head);
-      card.appendChild(body);
-      listEl.appendChild(card);
+      appendMemoCompletedCard(tabId, m);
     });
     if (!completed.length) {
       const empty = document.createElement('p');
@@ -3792,7 +3987,7 @@ delBtn.title = '삭제';
         const completedItems = allItems.filter(m => m.completed);
         const items = incompleteItems;
         const block = document.createElement('div');
-        const colorIdx = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9 ? tab.colorIndex : catIndex % 10;
+        const colorIdx = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 20 ? tab.colorIndex : catIndex % 21;
         block.className = 'memo-all-block memo-all-block-color-' + colorIdx;
         block.dataset.tabId = tab.id;
         const headerRow = document.createElement('div');
@@ -3820,7 +4015,7 @@ delBtn.title = '삭제';
           listEl.className = 'memo-item-list';
           incompleteItems.forEach((m, arrayIndex) => {
             const li = document.createElement('li');
-            li.className = 'memo-item-row' + (m.important === 'blue' ? ' memo-item-important-blue' : m.important === 'red' ? ' memo-item-important-red' : '');
+            li.className = 'memo-item-row' + memoImportantClassList(m.important);
             li.draggable = true;
             li.dataset.tabId = String(tab.id);
             li.dataset.itemId = String(m.id);
@@ -3843,12 +4038,12 @@ delBtn.title = '삭제';
             cb.draggable = false;
             const importantBtn = document.createElement('button');
             importantBtn.type = 'button';
-            importantBtn.className = 'memo-item-important-toggle' + (m.important === 'blue' ? ' important-blue' : m.important === 'red' ? ' important-red' : '');
+            importantBtn.className = 'memo-item-important-toggle' + memoImportantButtonClasses(m.important);
             importantBtn.dataset.tabId = tab.id;
             importantBtn.dataset.itemId = m.id;
-            importantBtn.title = m.important === 'red' ? '중요 빨강 (클릭 해제)' : m.important === 'blue' ? '중요 파랑 (클릭 시 빨강)' : '중요 표시';
+            importantBtn.title = importantBtnTitle(m.important);
             importantBtn.setAttribute('aria-label', '중요');
-            importantBtn.textContent = (m.important === 'blue' || m.important === 'red') ? '★' : '☆';
+            importantBtn.textContent = normalizeImportantVal(m.important) ? '★' : '☆';
             importantBtn.draggable = false;
             const titleInput = document.createElement('input');
             titleInput.type = 'text';
@@ -3902,7 +4097,7 @@ delBtn.title = '삭제';
               e.preventDefault();
               e.stopPropagation();
               const it = state.memos[tab.id].find(x => x.id === m.id);
-              const current = it && (it.important === 'blue' || it.important === 'red') ? it.important : false;
+              const current = it ? normalizeImportantVal(it.important) : false;
               setMemoItemImportant(tab.id, m.id, nextImportant(current));
             });
             function saveMemoFieldsAll() {
@@ -3916,13 +4111,17 @@ delBtn.title = '삭제';
             titleInput.addEventListener('change', saveMemoFieldsAll);
             titleInput.addEventListener('blur', saveMemoFieldsAll);
             titleInput.addEventListener('keydown', function (e) {
-              if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+              if (e.key === 'Enter') { e.preventDefault(); contentInput.focus(); }
             });
             contentInput.addEventListener('input', function () {
+              syncMemoRichPlaceholderClass(contentInput);
               saveMemoFieldsAll();
               adjustMemoItemContentHeight(contentInput);
             });
-            contentInput.addEventListener('blur', saveMemoFieldsAll);
+            contentInput.addEventListener('blur', function () {
+              syncMemoRichPlaceholderClass(contentInput);
+              saveMemoFieldsAll();
+            });
             bindMemoItemContentAutosize(contentInput);
             delBtn.addEventListener('click', function (e) {
               e.preventDefault();
@@ -4149,19 +4348,19 @@ delBtn.title = '삭제';
     if (allContent) allContent.style.display = 'none';
     const contentArea = document.getElementById('memo-content-area');
     const memoTabBar = document.querySelector('.memo-tab-bar');
-    const colorClasses = ['memo-color-0', 'memo-color-1', 'memo-color-2', 'memo-color-3', 'memo-color-4', 'memo-color-5', 'memo-color-6', 'memo-color-7', 'memo-color-8', 'memo-color-9'];
+    const colorClasses = ['memo-color-0', 'memo-color-1', 'memo-color-2', 'memo-color-3', 'memo-color-4', 'memo-color-5', 'memo-color-6', 'memo-color-7', 'memo-color-8', 'memo-color-9', 'memo-color-10', 'memo-color-11'];
     if (contentArea) {
       contentArea.classList.remove(...colorClasses);
       if (state.activeMemoTabId) {
         const tab = state.memoTabs.find(t => t.id === state.activeMemoTabId);
-        if (tab && typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9) contentArea.classList.add('memo-color-' + tab.colorIndex);
+        if (tab && typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 20) contentArea.classList.add('memo-color-' + tab.colorIndex);
       }
     }
     if (memoTabBar) {
       memoTabBar.classList.remove(...colorClasses);
       if (state.activeMemoTabId) {
         const tab = state.memoTabs.find(t => t.id === state.activeMemoTabId);
-        if (tab && typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9) memoTabBar.classList.add('memo-color-' + tab.colorIndex);
+        if (tab && typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 20) memoTabBar.classList.add('memo-color-' + tab.colorIndex);
       }
     }
     if (state.activeMemoTabId) {
@@ -4174,15 +4373,10 @@ delBtn.title = '삭제';
 
   function renderMemoItemList(tabId) {
     const listEl = document.getElementById('memo-item-list');
-    const countBtn = document.getElementById('memo-completed-count-btn');
     if (!listEl) return;
     const tabMeta = getMemoTabById(tabId);
     if (!tabMeta || !isMemoTabInActivePeriod(tabMeta)) {
-    listEl.innerHTML = '';
-      if (countBtn) {
-        countBtn.hidden = true;
-        countBtn.textContent = '완료 0';
-      }
+      listEl.innerHTML = '';
       updateMemoCompletedTotalFooter();
       return;
     }
@@ -4190,21 +4384,9 @@ delBtn.title = '삭제';
     const incompleteItems = sorted.filter(m => !m.completed);
     const completedItems = sorted.filter(m => m.completed);
     listEl.innerHTML = '';
-    if (countBtn) {
-      if (completedItems.length === 0) {
-        countBtn.hidden = true;
-        countBtn.textContent = '완료 0';
-      } else {
-        countBtn.hidden = false;
-        countBtn.textContent = '완료 ' + completedItems.length;
-        countBtn.onclick = function () {
-          openMemoCompletedModal(tabId);
-        };
-      }
-    }
     incompleteItems.forEach((m, index) => {
       const li = document.createElement('li');
-      li.className = 'memo-item-row' + (m.important === 'blue' ? ' memo-item-important-blue' : m.important === 'red' ? ' memo-item-important-red' : '');
+      li.className = 'memo-item-row' + memoImportantClassList(m.important);
       li.draggable = true;
       li.dataset.itemId = String(m.id);
       li.dataset.index = String(index);
@@ -4226,12 +4408,12 @@ delBtn.title = '삭제';
       cb.draggable = false;
       const importantBtn = document.createElement('button');
       importantBtn.type = 'button';
-      importantBtn.className = 'memo-item-important-toggle' + (m.important === 'blue' ? ' important-blue' : m.important === 'red' ? ' important-red' : '');
+      importantBtn.className = 'memo-item-important-toggle' + memoImportantButtonClasses(m.important);
       importantBtn.dataset.tabId = tabId;
       importantBtn.dataset.itemId = m.id;
-      importantBtn.title = m.important === 'red' ? '중요 빨강 (클릭 해제)' : m.important === 'blue' ? '중요 파랑 (클릭 시 빨강)' : '중요 표시';
+      importantBtn.title = importantBtnTitle(m.important);
       importantBtn.setAttribute('aria-label', '중요');
-      importantBtn.textContent = (m.important === 'blue' || m.important === 'red') ? '★' : '☆';
+      importantBtn.textContent = normalizeImportantVal(m.important) ? '★' : '☆';
       importantBtn.draggable = false;
       const titleInput = document.createElement('input');
       titleInput.type = 'text';
@@ -4278,7 +4460,7 @@ delBtn.title = '삭제';
       importantBtn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        const current = (m.important === 'blue' || m.important === 'red') ? m.important : false;
+        const current = normalizeImportantVal(m.important);
         setMemoItemImportant(tabId, m.id, nextImportant(current));
       });
       let memoDragPointerTarget = null;
@@ -4343,13 +4525,17 @@ delBtn.title = '삭제';
       titleInput.addEventListener('change', saveMemoFields);
       titleInput.addEventListener('blur', saveMemoFields);
       titleInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+        if (e.key === 'Enter') { e.preventDefault(); contentInput.focus(); }
       });
       contentInput.addEventListener('input', function () {
+        syncMemoRichPlaceholderClass(contentInput);
         saveMemoFields();
         adjustMemoItemContentHeight(contentInput);
       });
-      contentInput.addEventListener('blur', saveMemoFields);
+      contentInput.addEventListener('blur', function () {
+        syncMemoRichPlaceholderClass(contentInput);
+        saveMemoFields();
+      });
       bindMemoItemContentAutosize(contentInput);
       delBtn.addEventListener('click', function (e) {
         e.preventDefault();
@@ -4499,7 +4685,8 @@ delBtn.title = '삭제';
       if (endEl) endEl.value = (t && t.endDate) ? String(t.endDate).slice(0, 10) : '';
     } else {
       input.value = '';
-      state.editingMemoTabColorIndex = (state.memoTabs.length) % 10;
+      // 새 분류 기본 색: 0~11(흰색 포함)
+      state.editingMemoTabColorIndex = (state.memoTabs.length) % 12;
       if (startEl) startEl.value = '';
       if (endEl) endEl.value = '';
     }
@@ -4577,6 +4764,9 @@ delBtn.title = '삭제';
           closeMemoColorModal();
           refreshMemoReorderList();
           initMemoReorderDragDrop(document.getElementById('memo-reorder-list'));
+          renderTodos();
+          renderCalendar();
+          if (state.viewMode === 'calendarFull') renderCalendarFull();
         });
         pickerEl.appendChild(btn);
       });
@@ -4601,7 +4791,7 @@ delBtn.title = '삭제';
       li.dataset.tabId = tab.id;
       li.draggable = true;
       li.title = '드래그하여 순서 변경';
-      const colorIndex = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9 ? tab.colorIndex : 0;
+      const colorIndex = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 20 ? tab.colorIndex : 0;
       li.style.backgroundColor = MEMO_PASTEL_COLORS[colorIndex];
       const nameSpan = document.createElement('span');
       nameSpan.className = 'memo-reorder-name';
@@ -4741,7 +4931,7 @@ delBtn.title = '삭제';
         li.className = 'memo-reorder-item memo-reorder-item-deleted';
         li.dataset.tabId = tab.id;
         li.draggable = false;
-        const colorIndex = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 9 ? tab.colorIndex : 0;
+        const colorIndex = typeof tab.colorIndex === 'number' && tab.colorIndex >= 0 && tab.colorIndex <= 20 ? tab.colorIndex : 0;
         li.style.backgroundColor = MEMO_PASTEL_COLORS[colorIndex];
         const nameSpan = document.createElement('span');
         nameSpan.className = 'memo-reorder-name';
@@ -4929,8 +5119,21 @@ delBtn.title = '삭제';
     var totalBtn = document.getElementById('memo-completed-total-btn');
     if (totalBtn) {
       totalBtn.addEventListener('click', function () {
+        // 메모 상단 분류 선택값이 있으면 그 값을 우선으로 사용
+        var catSel = document.getElementById('memo-category-select');
+        var chosen = catSel ? (catSel.value || '') : '';
+        // 드롭다운이 '전체'이지만 단독 탭 보기 중인 경우 activeMemoTabId를 사용
+        if (!chosen && !state.viewAllMemos && state.activeMemoTabId) {
+          chosen = state.activeMemoTabId;
+        }
         var tabs = state.memoTabs || [];
-        var id = state.activeMemoTabId;
+        if (!chosen) {
+          // '전체' 선택 또는 드롭다운 값 없음
+          openMemoCompletedModal('__all__');
+          return;
+        }
+        // 유효하지 않으면(기간 종료 등) 첫 active 탭으로 폴백
+        var id = chosen;
         if (!id || !getMemoTabById(id) || !isMemoTabInActivePeriod(getMemoTabById(id))) {
           var first = tabs.find(function (t) { return isMemoTabInActivePeriod(t); });
           id = first ? first.id : null;
@@ -5131,7 +5334,10 @@ delBtn.title = '삭제';
     const cell = e.target.closest('.cal-day');
     if (!cell || !cell.dataset.date) return;
     const [y, m, d] = cell.dataset.date.split('-').map(Number);
-    setSelectedDate(new Date(y, m - 1, d));
+    // 달력에서 날짜 클릭 시 바로 할일보기로 전환하고, 클릭한 날짜가 가운데 오도록 중심 날짜를 강제 설정
+    const selDate = new Date(y, m - 1, d);
+    state.todoViewCenterDate = selDate;
+    state.selectedDate = selDate;
     setViewMode('todo');
   });
 
@@ -5257,6 +5463,7 @@ delBtn.title = '삭제';
     } else if (id === 'memo-color-modal') closeMemoColorModal();
     else if (id === 'memo-tab-modal') { closeMemoTabModal(); state.fromReorderModal = false; }
     else if (id === 'repeat-delete-modal') closeRepeatDeleteModal();
+    else if (id === 'repeat-edit-modal') closeRepeatEditModal();
     else e.target.classList.remove('show');
   });
 
@@ -5698,6 +5905,30 @@ delBtn.title = '삭제';
   }
   const todoThreeColPrev = document.getElementById('todo-three-col-prev');
   const todoThreeColNext = document.getElementById('todo-three-col-next');
+  const todoThreeColWeekPrev = document.getElementById('todo-three-col-week-prev');
+  const todoThreeColWeekNext = document.getElementById('todo-three-col-week-next');
+  if (todoThreeColWeekPrev) {
+    todoThreeColWeekPrev.addEventListener('click', () => {
+      if (state.viewMode !== 'todo') return;
+      const d = state.todoViewCenterDate || new Date();
+      state.todoViewCenterDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7);
+      state.selectedDate = state.todoViewCenterDate;
+      renderTodos();
+      updateTodoViewCaption();
+      renderCalendar();
+    });
+  }
+  if (todoThreeColWeekNext) {
+    todoThreeColWeekNext.addEventListener('click', () => {
+      if (state.viewMode !== 'todo') return;
+      const d = state.todoViewCenterDate || new Date();
+      state.todoViewCenterDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+      state.selectedDate = state.todoViewCenterDate;
+      renderTodos();
+      updateTodoViewCaption();
+      renderCalendar();
+    });
+  }
   if (todoThreeColPrev) {
     todoThreeColPrev.addEventListener('click', () => {
       if (state.viewMode !== 'todo') return;
@@ -5818,6 +6049,21 @@ delBtn.title = '삭제';
       openTodoModal(li.dataset.id);
     });
     calendarFullGrid.addEventListener('click', (e) => {
+      const numSpan = e.target.closest('.cal-full-num');
+      if (numSpan) {
+        e.preventDefault();
+        e.stopPropagation();
+        const cell = numSpan.closest('.cal-full-day');
+        if (cell && cell.dataset.date) {
+          const dkey = cell.dataset.date;
+          const d = new Date(parseInt(dkey.slice(0, 4), 10), parseInt(dkey.slice(5, 7), 10) - 1, parseInt(dkey.slice(8, 10), 10));
+          state.todoViewCenterDate = d;
+          state.selectedDate = d;
+          setViewMode('todo');
+          renderCalendar();
+        }
+        return;
+      }
       const addBtn = e.target.closest('.cal-full-add');
       if (addBtn) {
         e.preventDefault();
@@ -5880,7 +6126,7 @@ delBtn.title = '삭제';
         if (li) {
           const dkey = li.dataset.dateKey;
           if (dkey) state.selectedDate = new Date(parseInt(dkey.slice(0, 4), 10), parseInt(dkey.slice(5, 7), 10) - 1, parseInt(dkey.slice(8, 10), 10));
-          const current = li.dataset.important === '0' ? false : li.dataset.important;
+          const current = li.dataset.important === '0' ? false : normalizeImportantVal(li.dataset.important);
           setTodoImportant(li.dataset.id, nextImportant(current));
           renderCalendarFull();
         }
@@ -6299,7 +6545,9 @@ delBtn.title = '삭제';
       }
         toIndexInSection = computeTodoSectionInsertIndexBeforeRemoval(toKey, toSection, target.el, target.insertAbove);
       } else {
-        toIndexInSection = getSectionTodoListForMove(toKey, toSection).length;
+        toIndexInSection = (typeof target.index === 'number' && !isNaN(target.index))
+          ? target.index
+          : getSectionTodoListForMove(toKey, toSection).length;
       }
 
       // 이동 시 completed(체크)는 절대 자동 토글하지 않는다.
